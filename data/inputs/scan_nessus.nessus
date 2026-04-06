@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<NessusClientData_v2>
+  <Report name="Example report">
+    <ReportHost name="192.168.56.103">
+      <ReportItem pluginID="10001" port="8080" svc_name="http" protocol="tcp" severity="2">
+        <plugin_output>Application vulnerable to CVE-2020-1234 exploit</plugin_output>
+        <cve>CVE-2020-1234</cve>
+        <description>Example vulnerability description</description>
+      </ReportItem>
+      <ReportItem pluginID="10002" port="21" svc_name="ftp" protocol="tcp" severity="3">
+        <plugin_output>Anonymous FTP allowed</plugin_output>
+        <description>FTP anonymous login enabled</description>
+      </ReportItem>
+    </ReportHost>
+  </Report>
+</NessusClientData_v2>

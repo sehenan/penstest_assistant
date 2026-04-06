@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<!DOCTYPE nmaprun >
+<!-- Example Nmap XML -->
+<nmaprun>
+  <host>
+    <status state="up"/>
+    <address addr="192.168.56.101" addrtype="ipv4"/>
+    <hostnames>
+      <hostname name="web1.local"/>
+    </hostnames>
+    <ports>
+      <port protocol="tcp" portid="80">
+        <state state="open"/>
+        <service name="http" product="Apache httpd" version="2.4.49"/>
+        <script id="http-vuln-cve2017-5638" output="CVE-2017-5638">
+        </script>
+      </port>
+      <port protocol="tcp" portid="22">
+        <state state="open"/>
+        <service name="ssh" product="OpenSSH" version="7.6p1"/>
+      </port>
+    </ports>
+  </host>
+  <host>
+    <status state="up"/>
+    <address addr="192.168.56.102" addrtype="ipv4"/>
+    <hostnames/>
+    <ports>
+      <port protocol="tcp" portid="3306">
+        <state state="open"/>
+        <service name="mysql" product="MySQL" version="5.7.34"/>
+      </port>
+    </ports>
+  </host>
+</nmaprun>

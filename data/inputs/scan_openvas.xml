@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<openvas_report>
+  <result>
+    <host>192.168.56.104</host>
+    <port>445</port>
+    <service>smb</service>
+    <description>SMB vulnerability CVE-2017-0143 present</description>
+    <nvt>
+      <cve>CVE-2017-0143</cve>
+    </nvt>
+  </result>
+</openvas_report>

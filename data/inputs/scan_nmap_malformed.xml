@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<nmaprun scanner="nmap" args="nmap -sV -oX scan_nmap_malformed.xml 192.168.1.1" start="1695280000">
+<!-- Ce fichier est intentionnellement coupé pour simuler un crash réseau ou un export incomplet -->
+<host starttime="1695280000" endtime="1695280010">
+<status state="up" reason="arp-response"/>
+<address addr="192.168.1.1" addrtype="ipv4"/>
+<ports>
+<port protocol="tcp" portid="22">
+<state state="open" reason="syn-ack" reason_ttl="64"/>
+<service name="ssh" product="OpenSSH" version="8.2p1 Ubuntu 4ubuntu0.3" extrainfo="Ubuntu Linux; protocol 2.0" ostype="Linux" method="probed" conf="10">

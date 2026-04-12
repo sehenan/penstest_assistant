@@ -150,7 +150,7 @@ with tab2:
         # Visualisation premium du tableau
         st.dataframe(
             df.style.background_gradient(subset=['score'], cmap='viridis'),
-            use_container_width=True,
+            width='stretch',
             hide_index=True
         )
         
@@ -170,7 +170,7 @@ with tab2:
                     )
                 with colB:
                     st.markdown("<br>", unsafe_allow_html=True)
-                    submit = st.form_submit_button("🚀 INVOQUER LE RAG", use_container_width=True)
+                    submit = st.form_submit_button("🚀 INVOQUER LE RAG", width='stretch')
                 
                 if submit:
                     with st.spinner("🧠 L'IA fouille le RAG et rédige le plan d'assaut..."):

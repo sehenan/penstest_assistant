@@ -35,7 +35,7 @@ def generate_text(prompt: str, system_prompt: str = "") -> str | None:
     
     logger.debug("Prompting de %s via %s...", OLLAMA_MODEL, url)
     try:
-        r = requests.post(url, json=payload, timeout=120)
+        r = requests.post(url, json=payload, timeout=300)
         r.raise_for_status()
         return r.json().get("response", "")
     except requests.exceptions.Timeout:

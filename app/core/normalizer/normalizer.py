@@ -37,39 +37,66 @@ def normalize_and_insert(
                 host.os = h.get("os")
 
         for s in h.get("services", []):
-            service = Service(
-                host_id=host.id,
-                port=s.get("port") or 0,
-                protocol=s.get("protocol"),
-                service=s.get("service"),
-                version=s.get("version"),
-                banner=s.get("banner"),
+            port = s.get("port") or 0
+            proto = s.get("protocol")
+            
+            # Check if service already exists for this host/port/proto
+            service = session.scalar(
+                select(Service).where(
+                    Service.host_id == host.id,
+                    Service.port == port,
+                    Service.protocol == proto
+                )
             )
-            session.add(service)
-            session.flush()
-            created["services"] += 1
+            
+            if service is None:
+                service = Service(
+                    host_id=host.id,
+                    port=port,
+                    protocol=proto,
+                    service=s.get("service"),
+                    version=s.get("version"),
+                    banner=s.get("banner"),
+                )
+                session.add(service)
+                session.flush()
+                created["services"] += 1
+            else:
+                # Update existing service info if provided
+                if s.get("service"): service.service = s.get("service")
+                if s.get("version"): service.version = s.get("version")
+                if s.get("banner"): service.banner = s.get("banner")
 
             cves = s.get("cves") or []
             desc = s.get("description")
-            if cves:
-                for cve in cves:
-                    vuln = Vulnerability(
+            
+            def add_vuln_if_unique(cve_val, desc_val):
+                # Check for existing vuln
+                query = select(Vulnerability).where(Vulnerability.service_id == service.id)
+                if cve_val:
+                    query = query.where(Vulnerability.cve == cve_val)
+                elif desc_val:
+                    query = query.where(Vulnerability.description == desc_val)
+                else:
+                    return # Nothing to identify it
+                
+                existing_vuln = session.scalar(query)
+                if existing_vuln is None:
+                    new_vuln = Vulnerability(
                         service_id=service.id,
-                        cve=cve,
-                        description=desc,
+                        cve=cve_val,
+                        description=desc_val,
                         source=scan_source,
                     )
-                    session.add(vuln)
+                    session.add(new_vuln)
                     created["vulns"] += 1
+
+            if cves:
+                for cve in cves:
+                    add_vuln_if_unique(cve, desc)
             elif desc:
-                vuln = Vulnerability(
-                    service_id=service.id,
-                    cve=None,
-                    description=desc,
-                    source=scan_source,
-                )
-                session.add(vuln)
-                created["vulns"] += 1
+                add_vuln_if_unique(None, desc)
+
 
     try:
         session.commit()

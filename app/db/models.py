@@ -63,6 +63,10 @@ class ScoreML(Base):
 class Report(Base):
     __tablename__ = "reports"
     id = Column(Integer, primary_key=True)
+    vuln_id = Column(Integer, ForeignKey("vulnerabilities.id"), index=True, nullable=True)
     title = Column(String, nullable=False)
     content_md = Column(Text, nullable=True)
+    stage = Column(String, nullable=True)  # 'audit' ou 'payload'
     timestamp = Column(DateTime, default=datetime.utcnow)
+    
+    vulnerability = relationship("Vulnerability")

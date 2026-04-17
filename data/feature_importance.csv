@@ -1,0 +1,12 @@
+feature,importance
+cvss_score,0.35977948
+severity_num,0.34148592
+has_exploit,0.2643863
+in_exploitdb,0.01651536
+in_cisa_kev,0.004617535
+pr_num,0.003330107
+is_public,0.0028296923
+ui_num,0.0026672354
+av_num,0.0021524068
+ac_num,0.0020876839
+port,0.00014830338

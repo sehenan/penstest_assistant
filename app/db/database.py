@@ -33,7 +33,7 @@ def get_session(engine=None):
 
 def init_db(engine=None) -> None:
     eng = engine or get_engine()
-    # Import models so metadata is registered
-    from app.db import models  # noqa: F401
+   
+    from app.db import models 
 
     Base.metadata.create_all(bind=eng)

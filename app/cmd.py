@@ -12,26 +12,29 @@ except ImportError:
     print("Typer n'est pas installé. Exécutez: pip install typer")
     sys.exit(1)
 
+from typing import List, Optional
+
 # Import des composants backend (socle)
 from app.db.database import init_db, get_session
+from app.db.models import Vulnerability, ScoreML
 
 app = typer.Typer(help="Assistant Pentest - CLI de contrôle du pipeline d'IA offensive.")
 
 @app.command("ingest")
-def ingest(file_path: str):
-    """[Phase 1] Importe un fichier de scan (XML) dans la BDD SQLite."""
-    path = Path(file_path)
-    if not path.is_file():
-        typer.secho(f"Fichier inexistant : {path}", fg=typer.colors.RED)
-        raise typer.Exit(code=1)
-        
+def ingest(file_paths: List[str]):
+    """[Phase 1] Importe un ou plusieurs fichiers de scan (XML) dans la BDD SQLite."""
     init_db()
     session = get_session()
     try:
         from app.core.ingest import ingest_scan_file
-        typer.secho(f"--> Ingestion de {path} en cours...", fg=typer.colors.BLUE)
-        counts = ingest_scan_file(str(path), session)
-        typer.secho(f"Succès | Ajouts: {counts}", fg=typer.colors.GREEN)
+        for file_path in file_paths:
+            path = Path(file_path)
+            if not path.is_file():
+                typer.secho(f"Fichier inexistant : {path}", fg=typer.colors.RED)
+                continue
+            typer.secho(f"--> Ingestion de {path} en cours...", fg=typer.colors.BLUE)
+            counts = ingest_scan_file(str(path), session)
+            typer.secho(f"Succès | Ajouts: {counts}", fg=typer.colors.GREEN)
     finally:
         session.close()
 
@@ -56,49 +59,44 @@ def enrich():
         session.close()
 
 @app.command("train")
-def train(optimize: bool = typer.Option(False, "--optimize", "-o", help="Active l'optimisation des hyperparamètres (plus lent mais plus précis)")):
-    """[Phase 3a] Entraîne et sauvegarde le modèle XGBoost depuis les données réelles et officielles."""
+def train(
+    optimize: bool = typer.Option(False, "--optimize", "-o", help="Active l'optimisation des hyperparamètres (plus lent)"),
+    target_size: int = typer.Option(500, "--target-size", help="Taille cible après augmentation")
+):
+    """[Phase 3a] Entraîne le modèle XGBoost via le DataManager (Pro)."""
     session = get_session()
     try:
-        from app.core.ml.features import load_official_data, extract_real_data, augment_data, get_training_features
+        from app.core.ml.data_manager import DataManager, TRAIN_SET_PATH, TEST_SET_PATH, get_prepared_features
         from app.core.ml.train import train_and_save_model
-        import pandas as pd
         
-        typer.secho("--> Chargement des données officielles (NVD/CISA/ExploitDB)...", fg=typer.colors.BLUE)
-        df_official = load_official_data()
-        typer.secho(f"  * {len(df_official)} CVEs officielles chargées.", fg=typer.colors.CYAN)
-
-        typer.secho("--> Extraction des vulnérabilités locales (scans)...", fg=typer.colors.BLUE)
-        df_local = extract_real_data(session)
-        typer.secho(f"  * {len(df_local)} vulnérabilité(s) locale(s) trouvée(s).", fg=typer.colors.CYAN)
-
-        if df_official.empty and df_local.empty:
-            typer.secho("Aucune donnée d'entraînement disponible.", fg=typer.colors.RED)
+        dm = DataManager()
+        
+        typer.secho("--> Préparation du dataset unifié (NVD + Local)...", fg=typer.colors.BLUE)
+        df_unified = dm.prepare_unified_dataset(session, target_size=target_size)
+        
+        if df_unified.empty:
+            typer.secho("Aucune donnée d'entraînement.", fg=typer.colors.RED)
             raise typer.Exit()
-
-        # Combine datasets
-        dfs = []
-        if not df_official.empty:
-            dfs.append(df_official)
-        if not df_local.empty:
-            dfs.append(df_local)
             
-        df_combined = pd.concat(dfs, ignore_index=True)
-        typer.secho(f"  * Dataset total : {len(df_combined)} exemples.", fg=typer.colors.CYAN)
-
-        typer.secho("--> Augmentation des données (Hybride Ancré)...", fg=typer.colors.BLUE)
-        df_aug = augment_data(df_combined, target_size=200)
-        typer.secho(f"  * Dataset final prêt : {len(df_aug)} exemples.", fg=typer.colors.CYAN)
-
-        X, y = get_training_features(df_aug)
+        typer.secho(dm.get_report(), fg=typer.colors.CYAN)
+        
+        typer.secho("--> Split Train/Test...", fg=typer.colors.BLUE)
+        dm.split_and_save()
+        
+        X_train, y_train = get_prepared_features(TRAIN_SET_PATH)
+        X_test, y_test   = get_prepared_features(TEST_SET_PATH)
         
         mode_str = "OPTIMISÉ" if optimize else "STANDARD"
-        typer.secho(f"--> Entraînement du modèle XGBoost ({mode_str})...", fg=typer.colors.BLUE)
+        typer.secho(f"--> Entraînement XGBoost ({mode_str})...", fg=typer.colors.BLUE)
         
-        stats = train_and_save_model(X, y, optimize=optimize)
+        stats = train_and_save_model(
+            X_train, y_train, 
+            optimize=optimize, 
+            validation_data=(X_test, y_test)
+        )
         
-        typer.secho(f"Succès | RMSE: {stats.get('rmse', 0):.4f} | R2: {stats.get('r2', 0):.4f}", fg=typer.colors.GREEN)
-        typer.secho("Modèle sauvegardé dans data/model_xgb.joblib", fg=typer.colors.GREEN)
+        typer.secho(f"Succès | RMSE Val: {stats.get('rmse', 0):.4f} | R2 Val: {stats.get('r2', 0):.4f}", fg=typer.colors.GREEN)
+        typer.secho(f"Meilleure Itération : {stats.get('best_iteration')}", fg=typer.colors.GREEN)
     finally:
         session.close()
 
@@ -108,14 +106,17 @@ def score():
     """[Phase 3b] Priorisation ML : infère les scores depuis le modèle entraîné."""
     session = get_session()
     try:
-        from app.core.ml.features import extract_real_data
+        from app.core.ml.data_manager import DataManager
         from app.core.ml.predict import predict_and_store
-        typer.secho("--> Extraction dynamique des features...", fg=typer.colors.BLUE)
-        df = extract_real_data(session)
+        
+        dm = DataManager()
+        typer.secho("--> Extraction dynamique des features locales...", fg=typer.colors.BLUE)
+        df = dm.extract_real_data(session)
+        
         if df.empty:
             typer.secho("Base vide, aucune vulnérabilité à évaluer.", fg=typer.colors.RED)
             raise typer.Exit()
-
+ 
         typer.secho("--> Inférence par le modèle ML...", fg=typer.colors.BLUE)
         stats = predict_and_store(session, df)
         typer.secho(f"Succès | Modélisées : {stats}", fg=typer.colors.GREEN)
@@ -123,27 +124,39 @@ def score():
         session.close()
 
 @app.command("playbook")
-def playbook(vuln_id: int):
-    """[Phase 4] Génère automatiquement le code d'exploitation (RAG + Ollama)."""
+def playbook(vuln_id: int, mode: str = "audit"):
+    """[Phase 4] Génère un guide (audit ou payload) via RAG + Ollama."""
     session = get_session()
     try:
         from app.core.llm.generator import generate_playbook_for_vulnerability
-        typer.secho(f"--> Lancement LLM Agent sur ID {vuln_id}...", fg=typer.colors.BLUE)
-        repo_id = generate_playbook_for_vulnerability(session, vuln_id)
+        typer.secho(f"--> Lancement LLM Agent ({mode.upper()}) sur ID {vuln_id}...", fg=typer.colors.BLUE)
+        repo_id = generate_playbook_for_vulnerability(session, vuln_id, mode=mode)
         if repo_id:
-            typer.secho(f"Le Playbook a été rédigé avec succès (DRAFT ID: {repo_id}).", fg=typer.colors.GREEN)
+            typer.secho(f"Playbook [{mode.upper()}] créé (ID: {repo_id}).", fg=typer.colors.GREEN)
         else:
-            typer.secho("Échec de la génération de playbook (Ollama down ou Contexte mort).", fg=typer.colors.RED)
+            typer.secho("Échec de la génération de playbook.", fg=typer.colors.RED)
     finally:
         session.close()
 
+@app.command("exploit")
+def exploit(vuln_id: int):
+    """Génère le payload final d'exploitation pour une vulnérabilité validée."""
+    playbook(vuln_id, mode="payload")
+
 @app.command("ui")
-def ui():
-    """[Phase 5] Démarre le Dashboard interactif Streamlit."""
-    import sys
-    typer.secho("--> Lancement de l'IHM Opérateur...", fg=typer.colors.MAGENTA)
-    ui_script = Path(__file__).resolve().parent / "ui" / "dashboard.py"
-    subprocess.run([sys.executable, "-m", "streamlit", "run", str(ui_script)])
+def ui(
+    host: str = typer.Option("127.0.0.1", "--host", help="Adresse d'écoute"),
+    port: int = typer.Option(8505, "--port", help="Port d'écoute"),
+):
+    """[Phase 5] Démarre le Dashboard SIATI (FastAPI + HTML)."""
+    typer.secho(f"--> Lancement de l'IHM SIATI sur http://{host}:{port}", fg=typer.colors.MAGENTA)
+    server_module = "app.ui.server:app"
+    subprocess.run([
+        "uvicorn", server_module,
+        "--host", host,
+        "--port", str(port),
+        "--reload",
+    ])
 
 @app.command("index-rag")
 def index_rag(knowledge_dir: str = "data/knowledge"):
@@ -170,14 +183,61 @@ def index_rag(knowledge_dir: str = "data/knowledge"):
     build_index(docs)
     typer.secho(f"Succès | {len(docs)} documents indexés.", fg=typer.colors.GREEN)
 
-@app.command("pipeline")
-def pipeline(file_path: str):
-    """Automatise séquentiellement Ingest -> Enrich -> Train -> Score."""
-    ingest(file_path)
+@app.command("auto")
+def auto(file_paths: List[str], top_n: int = 3):
+    """Automatisation complète : Ingest -> Enrich -> Score -> Playbooks d'audit (Top N)."""
+    # 1. Pipeline technique
+    ingest(file_paths)
     enrich()
-    train()
+    
+    # Entraînement auto si modèle manquant
+    if not Path("data/model_xgb.joblib").exists():
+        typer.secho("Modèle manquant, lancement d'un entraînement standard...", fg=typer.colors.YELLOW)
+        train()
+
     score()
-    typer.secho("\n[+] AUTO-PIPELINE TERMINÉ. Prêt pour l'UI ou l'analyse.", fg=typer.colors.GREEN)
+    
+    # 2. Génération automatique des playbooks d'audit et de payload pour le Top N
+    session = get_session()
+    try:
+        # Récupération des vulnérabilités les mieux scorées
+        top_vulns = (
+            session.query(Vulnerability)
+            .join(ScoreML)
+            .order_by(ScoreML.score.desc())
+            .limit(top_n)
+            .all()
+        )
+        
+        if not top_vulns:
+            typer.secho("Aucune vulnérabilité trouvée pour la génération de playbooks.", fg=typer.colors.YELLOW)
+            return
+
+        typer.secho(f"\n[+] Génération End-to-End des Playbooks (Audit puis Payload) pour les {len(top_vulns)} vulnérabilités critiques...", fg=typer.colors.MAGENTA)
+        for v in top_vulns:
+            typer.secho(f"\n--- Traitement de la Vulnérabilité ID {v.id} ---", fg=typer.colors.YELLOW)
+            playbook(v.id, mode="audit")
+            playbook(v.id, mode="payload")
+
+    finally:
+        session.close()
+
+    typer.secho("\n[+] WORKFLOW AUTOMATIQUE END-TO-END TERMINÉ.", fg=typer.colors.GREEN)
+    typer.secho("Vos playbooks complets ont été générés et rattachés aux vulnérabilités.", fg=typer.colors.CYAN)
+
+@app.command("setup-data")
+def setup_data():
+    """Initialise les bases de données d'enrichissement (CPE, Exploits) pour la démo."""
+    typer.secho("--> Initialisation des données locales...", fg=typer.colors.BLUE)
+    from app.core.setup_data import setup_all_databases
+    setup_all_databases()
+    typer.secho("[+] Bases de données prêtes.", fg=typer.colors.GREEN)
+
+@app.command("check")
+def check():
+    """Lance un diagnostic complet du système."""
+    from app.core.check import run_diagnostics
+    run_diagnostics()
 
 if __name__ == "__main__":
     app()

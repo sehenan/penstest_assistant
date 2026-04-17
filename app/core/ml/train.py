@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import Optional, Tuple
 
 import joblib
 import pandas as pd
@@ -16,115 +17,121 @@ MODEL_PATH = Path("data") / "model_xgb.joblib"
 METRICS_PATH = Path("data") / "metrics_xgb.joblib"
 IMPORTANCE_PATH = Path("data") / "feature_importance.csv"
 
-def train_and_save_model(X: pd.DataFrame, y: pd.Series, optimize: bool = False) -> dict:
+def train_and_save_model(
+    X: pd.DataFrame, 
+    y: pd.Series, 
+    optimize: bool = False,
+    validation_data: Optional[Tuple[pd.DataFrame, pd.Series]] = None
+) -> dict:
     """
-    Entraîne le pipeline XGBoost (avec option d'optimisation HPO) et le sauvegarde.
-
-    Args:
-        X: DataFrame de features.
-        y: Series gold_risk_score.
-        optimize: Si True, lance une recherche d'hyperparamètres (RandomizedSearchCV).
-
-    Returns:
-        dict avec les métriques et meilleurs paramètres.
+    Entraîne le pipeline XGBoost avec support Early Stopping et HPO.
     """
     if X is None or (hasattr(X, "empty") and X.empty):
         logger.warning("Aucune donnée d'entraînement disponible.")
         return {}
 
-    n_samples = len(X)
-    logger.info("Entraînement XGBoost — %d échantillons, %d features", n_samples, X.shape[1])
-    logger.info("Features : %s", list(X.columns))
+    logger.info("Entraînement XGBoost — %d échantillons, %d features", len(X), X.shape[1])
 
-    # Split 80/20 pour évaluation finale
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
+    # 1. Split interne si non fourni (Cross-Validation interne)
+    if validation_data:
+        X_train, y_train = X, y
+        X_val, y_val = validation_data
+    else:
+        X_train, X_val, y_train, y_val = train_test_split(
+            X, y, test_size=0.15, random_state=42
+        )
 
-    # Pipeline de base
+    # 2. Pipeline de base
+    # Note: On laisse le scaler dans le pipeline pour l'inférence facile
     pipeline = Pipeline([
         ("scaler", StandardScaler()),
         ("xgb", XGBRegressor(
             objective="reg:squarederror",
             random_state=42,
             verbosity=0,
+            n_estimators=1000,  # Augmenté car Early Stopping va interrompre
+            early_stopping_rounds=20,  # Arrêt si pas de progrès sur 20 rounds
         )),
     ])
 
     if optimize:
         logger.info("🚀 Lancement de l'optimisation HPO (RandomizedSearchCV)...")
-        # Grille de recherche étendue pour un modèle "puissant"
         param_dist = {
-            "xgb__n_estimators": [100, 200, 500, 1000],
-            "xgb__learning_rate": [0.01, 0.05, 0.1, 0.2],
-            "xgb__max_depth": [3, 4, 5, 6, 8],
-            "xgb__subsample": [0.7, 0.8, 0.9, 1.0],
-            "xgb__colsample_bytree": [0.7, 0.8, 0.9, 1.0],
-            "xgb__gamma": [0, 0.1, 0.2],
+            "xgb__n_estimators": [500, 1000],
+            "xgb__learning_rate": [0.01, 0.05, 0.1],
+            "xgb__max_depth": [4, 6, 8],
+            "xgb__subsample": [0.8, 0.9, 1.0],
+            "xgb__colsample_bytree": [0.8, 0.9, 1.0],
         }
         
-        # Validation croisée 5-folds pour la robustesse
-        cv = KFold(n_splits=5, shuffle=True, random_state=42)
-        
+        cv = KFold(n_splits=3, shuffle=True, random_state=42)
         search = RandomizedSearchCV(
             pipeline, 
             param_distributions=param_dist,
-            n_iter=20,  # 20 itérations pour un bon compromis temps/qualité
+            n_iter=15,
             cv=cv,
             scoring="neg_mean_squared_error",
             verbose=1,
             random_state=42,
             n_jobs=-1
         )
-        search.fit(X_train, y_train)
         
-        logger.info("✅ Meilleurs paramètres trouvés : %s", search.best_params_)
+        # Le fit du search ne supporte pas bien l'eval_set global pour chaque fold
+        # donc on le fait sans early stopping pour la recherche pure
+        search.fit(X_train, y_train)
         pipeline = search.best_estimator_
+        logger.info("✅ Meilleurs paramètres : %s", search.best_params_)
     else:
-        # Paramètres par défaut "solides"
+        # Hyperparamètres "Pro" par défaut
         pipeline.set_params(
-            xgb__n_estimators=200,
-            xgb__learning_rate=0.08,
-            xgb__max_depth=5,
-            xgb__subsample=0.85,
-            xgb__colsample_bytree=0.85,
+            xgb__learning_rate=0.05,
+            xgb__max_depth=6,
+            xgb__subsample=0.9,
+            xgb__colsample_bytree=0.9,
         )
-        pipeline.fit(X_train, y_train)
 
-    # Évaluation sur le set de test
-    y_pred = pipeline.predict(X_test)
-    rmse   = float(np.sqrt(mean_squared_error(y_test, y_pred)))
-    r2     = float(r2_score(y_test, y_pred))
+    # 3. Fit final avec Early Stopping sur le set de validation
+    # On transforme X_val avec le scaler du pipeline manuellement pour eval_set
+    scaler = pipeline.named_steps["scaler"]
+    scaler.fit(X_train) # On scale sur le train complet
+    X_train_scaled = scaler.transform(X_train)
+    X_val_scaled = scaler.transform(X_val)
+
+    xgb_model = pipeline.named_steps["xgb"]
+    xgb_model.fit(
+        X_train_scaled, y_train,
+        eval_set=[(X_val_scaled, y_val)],
+        verbose=False
+    )
+
+    # 4. Évaluation sur le set de validation
+    y_pred = xgb_model.predict(X_val_scaled)
+    rmse = float(np.sqrt(mean_squared_error(y_val, y_pred)))
+    r2 = float(r2_score(y_val, y_pred))
 
     logger.info("─" * 40)
-    logger.info("RMSE  : %.4f", rmse)
-    logger.info("R²    : %.4f", r2)
-    logger.info("Train : %d   Test : %d", len(X_train), len(X_test))
+    logger.info("RMSE Validation : %.4f", rmse)
+    logger.info("R² Validation   : %.4f", r2)
+    logger.info("Meilleure Iteration : %d", xgb_model.best_iteration)
     logger.info("─" * 40)
 
-    # Sauvegarde du modèle
+    # 5. Sauvegarde
     MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(pipeline, MODEL_PATH)
     
-    # Export de l'importance des caractéristiques (utile pour le Dashboard)
-    xgb_model = pipeline.named_steps["xgb"]
+    # Feature Importance
     importances = pd.DataFrame({
         "feature": X.columns,
         "importance": xgb_model.feature_importances_
     }).sort_values(by="importance", ascending=False)
     importances.to_csv(IMPORTANCE_PATH, index=False)
     
-    logger.info("💾 Modèle sauvegardé → %s", MODEL_PATH)
-    logger.info("📊 Importance des features → %s", IMPORTANCE_PATH)
-
     results = {
         "rmse": rmse, 
         "r2": r2, 
-        "n_train": len(X_train), 
-        "n_test": len(X_test),
-        "params": pipeline.named_steps["xgb"].get_params()
+        "best_iteration": xgb_model.best_iteration,
+        "params": xgb_model.get_params()
     }
-    # Sauvegarde des métriques pour référence rapide
     joblib.dump(results, METRICS_PATH)
     
     return results

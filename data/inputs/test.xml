@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<?xml-stylesheet href="https://nmap.org/svn/docs/nmap.xsl" type="text/xsl"?>
+<nmaprun scanner="nmap" args="nmap -A -v -oX test_scan.xml scanme.nmap.org" start="1600000000" version="7.92" xmloutputversion="1.05">
+  <host>
+    <status state="up" reason="echo-reply"/>
+    <address addr="45.33.32.156" addrtype="ipv4"/>
+    <hostnames><hostname name="scanme.nmap.org" type="user"/></hostnames>
+    <ports>
+      <port protocol="tcp" portid="22"><state state="open"/><service name="ssh" product="OpenSSH" version="6.6.1p1"/></port>
+      <port protocol="tcp" portid="80"><state state="open"/><service name="http" product="Apache httpd" version="2.4.7"/></port>
+    </ports>
+  </host>
+</nmaprun>

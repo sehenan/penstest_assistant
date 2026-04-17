@@ -28,12 +28,8 @@ from sklearn.preprocessing import StandardScaler
 from xgboost import XGBRegressor
 
 from app.db.database import get_session, init_db
-from app.core.ml.features import (
-    augment_data,
-    extract_real_data,
-    get_training_features,
-    load_official_data,
-)
+from app.core.ml.data_manager import DataManager
+from app.core.ml.features import get_training_features
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -55,38 +51,26 @@ FEATURE_LABELS = {
     "ui_num":        "User Interaction",
 }
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 #  Chargement des données
 # ─────────────────────────────────────────────────────────────────────────────
 def _load_data() -> tuple[pd.DataFrame, str]:
     """
-    Charge les données d'entraînement depuis la meilleure source disponible.
-    Returns (df, data_source_label).
+    Charge les données via le DataManager (Pro).
     """
-    # Priorité 1 : CSV NVD officiel
-    df = load_official_data()
-    if not df.empty:
-        n_pos = int((df["has_exploit"] == 1).sum())
-        return df, f"NVD Officiel — NIST + CISA KEV + ExploitDB ({len(df)} CVEs, {n_pos} positifs)"
-
-    # Fallback : DB SQLite locale
-    logger.warning("CSV NVD absent — fallback sur la base de données locale.")
     init_db()
     session = get_session()
+    dm = DataManager()
+    
     try:
-        df_real = extract_real_data(session)
+        df = dm.prepare_unified_dataset(session)
+        if df.empty:
+            raise RuntimeError("Aucune donnée disponible pour l'évaluation.")
+        
+        source = "Dataset Unifié (NVD + Local)"
+        return df, source
     finally:
         session.close()
-
-    if df_real.empty:
-        raise RuntimeError(
-            "Aucune donnée disponible.\n"
-            "Lancez : python -m app.core.ml.fetch_training_data"
-        )
-
-    df = augment_data(df_real, target_size=500)
-    return df, f"DB locale augmentée ({len(df)} échantillons)"
 
 
 # ─────────────────────────────────────────────────────────────────────────────

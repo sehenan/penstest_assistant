@@ -2,13 +2,13 @@
 Points d'entrée CLI (Typer).
 Mappe les différentes phases (ingest, enrich, score, playbook) sur des commandes unifiées.
 """
+import sys
 import subprocess
 from pathlib import Path
 
 try:
     import typer
 except ImportError:
-    import sys
     print("Typer n'est pas installé. Exécutez: pip install typer")
     sys.exit(1)
 
@@ -152,7 +152,7 @@ def ui(
     typer.secho(f"--> Lancement de l'IHM SIATI sur http://{host}:{port}", fg=typer.colors.MAGENTA)
     server_module = "app.ui.server:app"
     subprocess.run([
-        "uvicorn", server_module,
+        sys.executable, "-m", "uvicorn", server_module,
         "--host", host,
         "--port", str(port),
         "--reload",

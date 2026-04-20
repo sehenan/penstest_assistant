@@ -139,6 +139,15 @@
   .report-viewer.visible{display:block}
   .report-content{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:20px;font-family:var(--mono);font-size:12px;line-height:1.7;white-space:pre-wrap;color:var(--txt2);max-height:500px;overflow-y:auto}
 
+  /* ═══ MODAL ═══ */
+  .modal-wrap{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;padding:20px}
+  .modal-wrap.open{display:flex}
+  .modal{background:var(--card);border:1px solid var(--border);border-radius:var(--r2);width:100%;max-width:380px;padding:28px;box-shadow:0 30px 60px rgba(0,0,0,0.5);transform:scale(0.95);opacity:0;transition:all 0.25s cubic-bezier(0.4,0,0.2,1);position:relative;z-index:310}
+  .modal-wrap.open .modal{transform:scale(1);opacity:1}
+  .modal-title{font-size:16px;font-weight:600;margin-bottom:12px;color:var(--txt);letter-spacing:-0.01em}
+  .modal-msg{font-size:13px;color:var(--txt2);line-height:1.6;margin-bottom:28px}
+  .modal-actions{display:flex;justify-content:flex-end;gap:12px}
+
   ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
 
   @media print{
@@ -220,13 +229,6 @@
 
   <!-- ═══ DASHBOARD ═══ -->
   <div class="page active" id="pg-dashboard">
-    <div class="pipeline" id="stepper">
-      <div class="p-step done" id="s1"><div class="p-num">01</div><div class="p-name">Ingestion</div><div class="p-st">Prêt</div></div>
-      <div class="p-step idle" id="s2"><div class="p-num">02</div><div class="p-name">Enrichissement NVD</div><div class="p-st">En attente</div></div>
-      <div class="p-step idle" id="s3"><div class="p-num">03</div><div class="p-name">CPE & ExploitDB</div><div class="p-st">En attente</div></div>
-      <div class="p-step idle" id="s4"><div class="p-num">04</div><div class="p-name">Priorisation ML</div><div class="p-st">En attente</div></div>
-      <div class="p-step idle" id="s5"><div class="p-num">05</div><div class="p-name">Génération RAG</div><div class="p-st">En attente</div></div>
-    </div>
     <div class="metrics">
       <div class="mc crit"><div class="mc-label">Critique</div><div class="mc-val" id="m-crit">0</div><div class="mc-bar"></div></div>
       <div class="mc high"><div class="mc-label">Haute</div><div class="mc-val" id="m-high">0</div><div class="mc-bar"></div></div>
@@ -273,6 +275,13 @@
 
   <!-- ═══ PIPELINE IA ═══ -->
   <div class="page" id="pg-pipeline">
+    <div class="pipeline" id="stepper" style="margin-bottom:20px">
+      <div class="p-step done" id="s1"><div class="p-num">01</div><div class="p-name">Ingestion</div><div class="p-st">Prêt</div></div>
+      <div class="p-step idle" id="s2"><div class="p-num">02</div><div class="p-name">Enrichissement NVD</div><div class="p-st">En attente</div></div>
+      <div class="p-step idle" id="s3"><div class="p-num">03</div><div class="p-name">CPE & ExploitDB</div><div class="p-st">En attente</div></div>
+      <div class="p-step idle" id="s4"><div class="p-num">04</div><div class="p-name">Priorisation ML</div><div class="p-st">En attente</div></div>
+      <div class="p-step idle" id="s5"><div class="p-num">05</div><div class="p-name">Génération RAG</div><div class="p-st">En attente</div></div>
+    </div>
     <div class="upload-zone" id="dropz" onclick="document.getElementById('finput').click()">
       <input type="file" id="finput" accept=".xml,.nessus" hidden onchange="handleFile(this.files[0])">
       <div class="uz-title">Glisser un fichier de scan</div>
@@ -350,6 +359,19 @@
       <button class="btn btn-sm" onclick="closeDrawer()">Fermer</button>
     </div>
     <div class="drawer-body" id="dw-body"></div>
+  </div>
+</div>
+
+<!-- ═══ MODAL CONFIRMATION ═══ -->
+<div class="modal-wrap" id="modal-confirm">
+  <div class="overlay" onclick="closeModal()"></div>
+  <div class="modal">
+    <div class="modal-title" id="modal-title">Confirmation</div>
+    <div class="modal-msg" id="modal-msg">Êtes-vous sûr de vouloir supprimer cet élément ? Cette action est irréversible.</div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Annuler</button>
+      <button class="btn" id="modal-confirm-btn" style="background:var(--red);color:#fff;border:none">Supprimer</button>
+    </div>
   </div>
 </div>
 
@@ -575,6 +597,7 @@ function closeDrawer(e) {
 }
 
 // ─── PIPELINE / FILE UPLOAD ─────────────────────────────────────────────
+let pipeTimers = []; // Suivi des timers d'animation
 const dropz = document.getElementById('dropz');
 dropz.addEventListener('dragover', e => { e.preventDefault(); dropz.classList.add('dragging'); });
 dropz.addEventListener('dragleave', () => dropz.classList.remove('dragging'));
@@ -582,14 +605,27 @@ dropz.addEventListener('drop', e => { e.preventDefault(); dropz.classList.remove
 
 function handleFile(file) {
   if (!file) return;
+  
+  // Reset timers et UI
+  pipeTimers.forEach(clearTimeout);
+  pipeTimers = [];
+  
   log('Import: ' + file.name);
   logAudit('Import fichier: ' + file.name);
 
-  // Animate stepper
   const steps = ['s1', 's2', 's3', 's4', 's5'];
   const labels = ['Ingestion...', 'NVD...', 'CPE & Exploits...', 'ML Scoring...', 'Finalisation...'];
+  
+  // Réinitialisation visuelle immédiate
+  steps.forEach(s => {
+    const el = document.getElementById(s);
+    el.className = 'p-step idle';
+    el.querySelector('.p-st').innerText = 'En attente';
+  });
+
+  // Animation cosmétique
   steps.forEach((s, i) => {
-    setTimeout(() => {
+    let t = setTimeout(() => {
       const el = document.getElementById(s);
       if (i > 0) {
         const prev = document.getElementById(steps[i - 1]);
@@ -600,9 +636,10 @@ function handleFile(file) {
       el.querySelector('.p-st').innerText = labels[i];
       log('Phase ' + (i + 1) + ': ' + labels[i]);
     }, i * 1200);
+    pipeTimers.push(t);
   });
 
-  // Send file
+  // Envoi réel
   const fd = new FormData();
   fd.append('file', file);
   fd.append('auto_pilot', 'true');
@@ -610,11 +647,16 @@ function handleFile(file) {
   fetch('/api/ingest', { method: 'POST', body: fd })
     .then(r => r.json())
     .then(r => {
+      // Le serveur a répondu, on arrête l'animation factice
+      pipeTimers.forEach(clearTimeout);
+      
+      // On force tout le monde en "Terminé"
       steps.forEach(s => {
         const el = document.getElementById(s);
         el.className = 'p-step done';
         el.querySelector('.p-st').innerText = 'Terminé';
       });
+      
       if (r.ok) {
         log('Pipeline Auto-Pilot terminé avec succès (' + (r.stats?.duration || '?') + 's)', 'ok');
         logAudit('Pipeline complet — ' + file.name + ' — ' + (r.stats?.duration || '?') + 's');
@@ -646,11 +688,40 @@ async function loadReports() {
         '<button class="btn btn-sm" onclick="viewReport(' + r.id + ');event.stopPropagation()">Voir</button>' +
         '<button class="btn btn-sm" onclick="dlReport(' + r.id + ',\'md\');event.stopPropagation()">MD</button>' +
         '<button class="btn btn-sm" onclick="dlReport(' + r.id + ',\'pdf\');event.stopPropagation()">PDF</button>' +
+        '<button class="btn btn-sm" style="color:var(--red);border-color:var(--red-dim)" onclick="deleteReport(' + r.id + ');event.stopPropagation()">Supprim.</button>' +
       '</td></tr>'
     ).join('');
   } catch (e) {
     tb.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--red)">Erreur</td></tr>';
   }
+}
+
+async function deleteReport(id) {
+  showConfirm(
+    'Supprimer le rapport ?',
+    'Voulez-vous vraiment supprimer définitivement ce rapport ? Cette action effacera les données associées de la base.',
+    async () => {
+      try {
+        const r = await api('/api/reports/' + id, 'DELETE');
+        if (r.ok) {
+          log('Rapport supprimé avec succès', 'ok');
+          loadReports();
+        }
+      } catch (e) { log('Erreur suppression: ' + e.message, 'warn'); }
+    }
+  );
+}
+
+function showConfirm(title, msg, onConfirm) {
+  document.getElementById('modal-title').innerText = title;
+  document.getElementById('modal-msg').innerText = msg;
+  const btn = document.getElementById('modal-confirm-btn');
+  btn.onclick = () => { onConfirm(); closeModal(); };
+  document.getElementById('modal-confirm').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal-confirm').classList.remove('open');
 }
 
 async function viewReport(id) {

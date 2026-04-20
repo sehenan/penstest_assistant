@@ -721,9 +721,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Bouton export uniquement
+# Boutons export et suppression
 if latest and latest.content_md:
-    _, dl_col = st.columns([5, 2])
+    _, dl_col, del_col = st.columns([5, 2, 2])
     with dl_col:
         st.download_button(
             "⬇  Exporter Markdown",
@@ -732,6 +732,17 @@ if latest and latest.content_md:
             mime="text/markdown",
             key="btn_dl",
         )
+    with del_col:
+        if st.button("🗑️ Supprimer", key="btn_del_rep"):
+            db.delete(latest)
+            try:
+                db.commit()
+                st.success("Rapport supprimé.")
+                time.sleep(1)
+                st.rerun()
+            except Exception as e:
+                db.rollback()
+                st.error(f"Erreur suppression: {e}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════

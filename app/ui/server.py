@@ -284,6 +284,24 @@ def get_report_content(report_id: int):
         session.close()
 
 
+@app.delete("/api/reports/{report_id}")
+def delete_report(report_id: int):
+    """Supprime un rapport de la base de données."""
+    session = get_session()
+    try:
+        r = session.query(Report).filter(Report.id == report_id).first()
+        if not r:
+            raise HTTPException(status_code=404, detail="Rapport introuvable")
+        session.delete(r)
+        session.commit()
+        return {"ok": True, "message": "Rapport supprimé"}
+    except Exception as e:
+        session.rollback()
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+    finally:
+        session.close()
+
+
 # ── 6. GÉNÉRATION PLAYBOOK ────────────────────────────────────────────────────
 class PlaybookRequest(BaseModel):
     vuln_id: int

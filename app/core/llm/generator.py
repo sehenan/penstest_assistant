@@ -93,7 +93,8 @@ Développe un guide de type {mode.upper()} structuré pour cette machine.
         logger.error("Défaut de réponse de l'LLM.")
         return None
         
-    # 5. Création du Rapport
+    # 5. Gestion du Rapport (UPSERT)
+    from datetime import datetime
     titre = f"[{titre_prefix}] {host.ip}:{svc.port} - {cve}"
     content_draft = (
         f"> [!IMPORTANT]\n"
@@ -102,19 +103,31 @@ Développe un guide de type {mode.upper()} structuré pour cette machine.
         f"{generated_md}"
     )
     
-    report = Report(
-        title=titre,
-        content_md=content_draft,
-        stage=mode,
-        vuln_id=vuln_id
-    )
-    
-    db_session.add(report)
+    # Recherche d'un rapport existant pour cette vulnérabilité et ce mode spécifique
+    report = db_session.query(Report).filter(
+        Report.vuln_id == vuln_id,
+        Report.stage == mode
+    ).first()
+
+    if report:
+        logger.info("Rapport existant trouvé (ID %s), mise à jour en cours...", report.id)
+        report.title = titre
+        report.content_md = content_draft
+        report.timestamp = datetime.utcnow()
+    else:
+        report = Report(
+            title=titre,
+            content_md=content_draft,
+            stage=mode,
+            vuln_id=vuln_id
+        )
+        db_session.add(report)
+
     try:
         db_session.commit()
-        logger.info("Playbook [%s] inséré -> Report ID %s", mode, report.id)
+        logger.info("Playbook [%s] synchronisé -> Report ID %s", mode, report.id)
         return report.id
     except Exception as e:
-        logger.error("Erreur stockage : %s", e)
+        logger.error("Erreur stockage (UPSERT) : %s", e)
         db_session.rollback()
         return None

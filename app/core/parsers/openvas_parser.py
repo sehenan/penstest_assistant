@@ -7,8 +7,8 @@ def parse_openvas(xml_path: str) -> List[Dict]:
     Parse a simple OpenVAS/GVM XML export and return host dicts.
     Note: OpenVAS exports vary; this is a pragmatic/simple parser.
     """
-    tree = etree.parse(xml_path)
-    root = tree.getroot()
+    from app.core.parsers.utils import load_xml_clean
+    root = load_xml_clean(xml_path)
     results = []
 
     for result in root.findall(".//result"):

@@ -14,8 +14,8 @@ def parse_nessus(xml_path: str) -> List[Dict]:
     Parse un export Nessus (.nessus) et retourne la même structure que Nmap/OpenVAS :
     { ip, hostname, os, services: [{ port, protocol, service, version, banner, cves, description }] }
     """
-    tree = etree.parse(xml_path)
-    root = tree.getroot()
+    from app.core.parsers.utils import load_xml_clean
+    root = load_xml_clean(xml_path)
     results: List[Dict] = []
 
     for report_host in root.findall(".//ReportHost"):

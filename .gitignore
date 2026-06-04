@@ -46,3 +46,10 @@ test_out.txt
 # DBs/Logs
 *.sqlite3
 *.log
+
+# Données générées et Bases de connaissances locales
+data/knowledge_base/
+outputs/
+
+data/Dataset/nvdcve-2.0-2022.json (2).zip
+data/faiss_index/chunks.json

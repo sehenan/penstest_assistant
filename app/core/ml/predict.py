@@ -1,17 +1,8 @@
 """
 predict.py
 ==========
-Inférence et discrétisation hybride : Score brut (régression) → Classe label.
-
-Le modèle XGBoost entraîné sur NVD + CISA KEV + ExploitDB produit un
-gold_risk_score continu [0–10] qui est ensuite converti en label métier.
-
-Seuils de discrétisation (alignés CVSS v3) :
-  ≥ 9.0  → Critique   (CRITICAL)
-  ≥ 7.0  → Haut       (HIGH)
-  ≥ 4.0  → Moyen      (MEDIUM)
-  > 0.0  → Faible     (LOW)
-  = 0.0  → Info
+Inférence avec les modèles XGBoost v2.
+Modèles : classificateur_xgb.joblib (CalibratedClassifierCV) + regresseur_xgb.joblib (XGBRegressor)
 """
 import logging
 from datetime import datetime
@@ -19,122 +10,127 @@ from pathlib import Path
 from typing import Optional
 
 import joblib
+import numpy as np
 import pandas as pd
 from sqlalchemy.orm import Session
 
 from app.db.models import ScoreML
-from app.core.ml.features import FEATURE_COLS
+from app.core.ml.features import FEATURE_COLS, engineer_features
 
 logger = logging.getLogger(__name__)
 
-MODEL_PATH = Path("data") / "model_xgb.joblib"
+# ───────────────────────────────────────────────────────────────
+# CHEMINS DES MODÈLES
+# ───────────────────────────────────────────────────────────────
+MODEL_REG_PATH = Path("data") / "model" / "regresseur_xgb.joblib"
+MODEL_CLF_PATH = Path("data") / "model" / "classificateur_xgb.joblib"
 
+# ───────────────────────────────────────────────────────────────
+# MAPPING LABELS
+# Train.py v2 : 0=Low, 1=Medium, 2=High, 3=Critical
+# (quantiles adaptatifs  q25/q60/q88 de ops_risk_score)
+# ───────────────────────────────────────────────────────────────
+LABEL_MAP = {0: "Faible", 1: "Moyenne", 2: "Haute", 3: "Critique"}
 
-# ─────────────────────────────────────────────────────────────────────────────
-#  Discrétisation du score continu
-# ─────────────────────────────────────────────────────────────────────────────
 def _score_to_label(score: float) -> str:
-    """Convertit un gold_risk_score [0–10] en label métier."""
-    if score >= 9.0:
+    """Convertit un ops_risk_score [0–1] en label métier (fallback régresseur)."""
+    if score >= 0.75:
         return "Critique"
-    if score >= 7.0:
-        return "Haut"
-    if score >= 4.0:
-        return "Moyen"
-    if score > 0.0:
-        return "Faible"
-    return "Info"
+    if score >= 0.50:
+        return "Haute"
+    if score >= 0.25:
+        return "Moyenne"
+    return "Faible"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-#  Préparation des features pour l'inférence
-# ─────────────────────────────────────────────────────────────────────────────
-def _prepare_inference_features(df: pd.DataFrame) -> Optional[pd.DataFrame]:
-    """
-    Aligne le DataFrame d'entrée sur les features attendues par le modèle.
+def _generate_reasoning(row: pd.Series, score: float, label: str) -> str:
+    """Génère une explication textuelle basée sur les features critiques."""
+    reasons = []
 
-    Colonnes requises (issues de features.FEATURE_COLS) :
-        cvss_score, severity_num, port, is_public, has_exploit,
-        in_cisa_kev, in_exploitdb, av_num, ac_num, pr_num, ui_num
+    if row.get("is_exploited", 0) == 1:
+        reasons.append("Exploitation active détectée (KEV)")
+    if row.get("cvss_score", 0) >= 9.0:
+        reasons.append(f"CVSS critique ({row.get('cvss_score', 0):.1f})")
+    elif row.get("cvss_score", 0) >= 7.0:
+        reasons.append(f"CVSS élevé ({row.get('cvss_score', 0):.1f})")
+    if row.get("epss", 0) > 0.5:
+        reasons.append(f"EPSS très élevé ({row.get('epss', 0):.2f})")
+    elif row.get("epss", 0) > 0.1:
+        reasons.append(f"Probabilité d'exploitation significative (EPSS={row.get('epss', 0):.2f})")
+    # pr_num=0 → None (aucun privilège requis) dans l'encodage v2
+    if row.get("av_num", 0) == 4 and row.get("pr_num", 0) == 0:
+        reasons.append("Accessible à distance sans authentification")
+    if row.get("age_cve", 999) <= 6:
+        reasons.append("CVE récente (< 6 mois)")
 
-    Les colonnes manquantes sont remplies avec 0 (valeur neutre/inconnue).
-    """
-    X = pd.DataFrame(index=df.index)
-    for col in FEATURE_COLS:
-        if col in df.columns:
-            X[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-        else:
-            X[col] = 0
-            logger.debug("Feature absente pour l'inférence, remplie à 0 : %s", col)
-    return X[FEATURE_COLS]
+    if not reasons:
+        return f"Priorité {label}. Score ops_risk={score:.3f} basé sur les métriques standards."
 
+    return f"Priorité {label}. Facteurs clés : {', '.join(reasons)}. Score ops_risk={score:.3f}."
 
-# ─────────────────────────────────────────────────────────────────────────────
-#  Inférence + écriture en base
-# ─────────────────────────────────────────────────────────────────────────────
 def predict_and_store(session: Session, df: pd.DataFrame) -> dict[str, int]:
     """
-    Prédit le gold_risk_score pour chaque vulnérabilité et stocke le résultat
-    dans la table ScoreML.
-
-    Args:
-        session: Session SQLAlchemy active.
-        df:      DataFrame contenant au minimum les colonnes FEATURE_COLS
-                 ET une colonne 'vuln_id'.
-
-    Returns:
-        dict {"scored": int, "failed": int}
+    Exécute l'inférence et stocke les résultats.
     """
-    stats: dict[str, int] = {"scored": 0, "failed": 0}
+    stats = {"scored": 0, "failed": 0}
 
-    if df is None or df.empty:
-        logger.warning("predict_and_store : DataFrame vide, rien à scorer.")
+    if df.empty:
         return stats
 
-    if not MODEL_PATH.is_file():
-        logger.error(
-            "Modèle introuvable : %s\n"
-            "Lancez d'abord : python -m app.core.ml.fetch_training_data",
-            MODEL_PATH,
-        )
+    if not MODEL_REG_PATH.exists() or not MODEL_CLF_PATH.exists():
+        logger.error(f"Modèles manquants dans {MODEL_REG_PATH.parent}")
         return stats
 
     try:
-        pipeline = joblib.load(MODEL_PATH)
-        logger.info("Modèle chargé : %s", MODEL_PATH)
+        model_reg = joblib.load(MODEL_REG_PATH)
+        model_clf = joblib.load(MODEL_CLF_PATH)
 
-        X = _prepare_inference_features(df)
-        raw_scores = pipeline.predict(X)
+        # 1. Feature Engineering (Logique v4)
+        X = engineer_features(df)
 
+        # 2. Prédictions
+        raw_scores = model_reg.predict(X)
+        raw_labels = model_clf.predict(X)
+        clf_probas = model_clf.predict_proba(X)
+
+        # 3. Stockage
         for idx, (_, row) in enumerate(df.iterrows()):
-            score = float(raw_scores[idx])
-            label = _score_to_label(score)
-
+            score_v4 = float(raw_scores[idx])
+            label_num = int(raw_labels[idx])
+            label_str = LABEL_MAP.get(label_num, "Moyenne")
+            confidence = float(np.max(clf_probas[idx]))
+            
+            # On multiplie par 10 pour l'affichage (0-1 -> 0-10)
+            display_score = round(score_v4 * 10, 2)
+            
             vuln_id = int(row["vuln_id"])
-            
-            # Recherche d'un score existant pour cette vulnérabilité
             s_ml = session.query(ScoreML).filter(ScoreML.vuln_id == vuln_id).first()
-            
+
+            reasoning = _generate_reasoning(row, score_v4, label_str)
+
             if s_ml:
-                s_ml.score = round(score, 4)
-                s_ml.label = label
+                s_ml.score = display_score
+                s_ml.label = label_str
+                s_ml.reasoning = reasoning
+                s_ml.confidence = round(confidence, 4)
                 s_ml.timestamp = datetime.utcnow()
-                logger.debug("Mise à jour du score pour vuln_id %d", vuln_id)
             else:
                 s_ml = ScoreML(
                     vuln_id=vuln_id,
-                    score=round(score, 4),
-                    label=label,
+                    score=display_score,
+                    label=label_str,
+                    reasoning=reasoning,
+                    confidence=round(confidence, 4)
                 )
                 session.add(s_ml)
-                logger.debug("Nouveau score pour vuln_id %d", vuln_id)
+            
             stats["scored"] += 1
 
         session.commit()
-        logger.info("Scoring terminé — %d vulnérabilités scorées.", stats["scored"])
+        logger.info(f"Scoring ML terminé : {stats['scored']} vulns traitées.")
 
-    except Exception as exc:
-        logger.error("Erreur inférence ML : %s", exc, exc_info=True)
+    except Exception as e:
+        logger.error(f"Erreur pendant l'inférence ML : {e}", exc_info=True)
         session.rollback()
         stats["failed"] += 1
 

@@ -15,7 +15,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 from app.db.database import DATABASE_URL
 from app.db.models import Exploit, Host, Report, ScoreML, Service, Vulnerability
 from app.core.ingest import ingest_scan_file
-from app.core.enrichment.nvd import enrich_vulnerabilities_from_nvd
+from app.core.enrichment.nvd import enrich_vulnerabilities_from_local_intel
 from app.core.enrichment.cpe import enrich_services_with_cpe
 from app.core.enrichment.exploit_db import enrich_exploits
 from app.core.ml.data_manager import DataManager
@@ -532,7 +532,7 @@ if btn_run:
             ingest_scan_file(str(fpath), db)
 
             st.write("2 / 4 — Enrichissement NVD (CVE / CVSS)…")
-            enrich_vulnerabilities_from_nvd(db)
+            enrich_vulnerabilities_from_local_intel(db)
 
             st.write("3 / 4 — Résolution CPE + Exploit-DB…")
             enrich_services_with_cpe(db)

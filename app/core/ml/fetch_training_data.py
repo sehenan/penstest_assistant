@@ -14,7 +14,7 @@ Logique de labellisation (has_exploit / label) :
 Résultat → data/nvd_training_data.csv
   Colonnes : cve, cvss_score, severity, severity_num, port, service,
              is_public, has_exploit, label, attackVector, attackComplexity,
-             privilegesRequired, userInteraction, gold_risk_score, source
+             privilegesRequired, userInteraction, svc_type_num, gold_risk_score, source
 
 Usage :
     python -m app.core.ml.fetch_training_data
@@ -342,7 +342,10 @@ def parse_nvd(
         has_exploit = int(in_kev or in_exploitdb or high_risk_nvd)
 
         # ── Gold Risk Score (cible de régression continue) ──
-        bonus = (1.5 if has_exploit else 0.0) + (0.5 if is_public else 0.0)
+        from app.core.ml.features import classify_service
+        svc_type_num = classify_service(port, service)
+        
+        bonus = (1.5 if has_exploit else 0.0) + (0.5 if is_public else 0.0) + (svc_type_num * 0.2)
         gold_risk = round(min(cvss_score + bonus, 10.0), 2)
 
         # ── Colonne source lisible ──
@@ -368,6 +371,8 @@ def parse_nvd(
             "attackComplexity":   extra["attackComplexity"],
             "privilegesRequired": extra["privilegesRequired"],
             "userInteraction":    extra["userInteraction"],
+            "svc_type_num":       svc_type_num,
+            "age_cve":            2026 - int(cve_id.split('-')[1]) if '-' in cve_id else 0,
             "gold_risk_score":    gold_risk,
             "source":             source_label,
         })

@@ -68,7 +68,7 @@
   .p-step.running .p-st{color:var(--blue)}
   .p-step.idle .p-st{color:var(--txt3)}
 
-  .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px}
+  .metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:28px}
   .mc{background:var(--card);border:1px solid var(--border);border-radius:var(--r2);padding:20px;position:relative;overflow:hidden}
   .mc-label{font-size:10px;color:var(--txt3);font-family:var(--mono);letter-spacing:0.08em;margin-bottom:10px;text-transform:uppercase}
   .mc-val{font-size:30px;font-weight:600;line-height:1;letter-spacing:-1px}
@@ -109,12 +109,43 @@
   .t-warn{color:var(--amber)}
   .t-info{color:var(--blue)}
 
-  .chat-wrap{background:var(--card);border:1px solid var(--border);border-radius:var(--r2);display:flex;flex-direction:column;height:480px}
-  .chat-hist{flex:1;padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
-  .msg{max-width:82%;padding:12px 16px;border-radius:var(--r2);font-size:13px;line-height:1.65}
-  .msg-ai{background:var(--hover);align-self:flex-start;border-left:2px solid var(--accent)}
-  .msg-user{background:var(--accent);color:#fff;align-self:flex-end}
-  .msg pre{background:var(--bg);padding:10px;border-radius:var(--r);font-family:var(--mono);font-size:11px;margin-top:8px;overflow-x:auto;white-space:pre-wrap}
+  .chat-wrap{background:var(--card);border:1px solid var(--border);border-radius:var(--r2);display:flex;flex-direction:column;height:520px;box-shadow:0 10px 30px -10px rgba(0,0,0,0.5);position:relative}
+  .chat-target-info{padding:10px 20px;border-bottom:1px solid var(--border);background:rgba(255,255,255,0.02);font-family:var(--mono);font-size:10px;color:var(--txt3);display:flex;align-items:center;gap:8px}
+  .chat-hist{flex:1;padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:18px;background:radial-gradient(circle at top right, rgba(249,115,22,0.03), transparent 40%)}
+  .msg{max-width:85%;padding:14px 18px;border-radius:14px;font-size:13px;line-height:1.65;position:relative;transition:all 0.2s ease}
+  .msg-ai{background:var(--hover);align-self:flex-start;border-bottom-left-radius:2px;border:1px solid var(--border);color:var(--txt2);backdrop-filter:blur(10px);box-shadow:2px 4px 12px rgba(0,0,0,0.1)}
+  .msg-user{background:linear-gradient(135deg, var(--accent), #fb923c);color:#fff;align-self:flex-end;border-bottom-right-radius:2px;box-shadow:0 4px 12px rgba(249,115,22,0.2)}
+  
+  .md-code-wrap{position:relative;margin:12px 0}
+  .md-code{background:#000;padding:14px;border-radius:8px;font-family:var(--mono);font-size:11px;overflow-x:auto;display:block;border:1px solid var(--border);color:var(--green);line-height:1.5}
+  .copy-btn{position:absolute;top:8px;right:8px;padding:4px 8px;font-size:9px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:var(--txt2);cursor:pointer;opacity:0;transition:opacity 0.2s}
+  .md-code-wrap:hover .copy-btn{opacity:1}
+  .copy-btn:hover{background:rgba(255,255,255,0.2);color:var(--txt)}
+
+  .md-h1,.md-h2{font-weight:600;margin-top:16px;margin-bottom:8px;display:block;color:var(--txt)}
+  .md-h1{font-size:15px;color:var(--accent);border-bottom:1px solid var(--border);padding-bottom:4px}
+  .md-h2{font-size:13px}
+  .md-bold{font-weight:600;color:var(--txt)}
+  .md-list-item{display:flex;gap:8px;margin-bottom:4px;color:var(--txt2)}
+  .md-list-item::before{content:'•';color:var(--accent);font-weight:bold}
+
+  /* Thinking Animation */
+  .thinking{display:flex;gap:4px;padding:4px 0}
+  .t-dot{width:6px;height:6px;background:var(--accent);border-radius:50%;animation:t-bounce 1s infinite ease-in-out;opacity:0.6}
+  .t-dot:nth-child(2){animation-delay:0.2s}
+  .t-dot:nth-child(3){animation-delay:0.4s}
+  @keyframes t-bounce{0%,80%,100%{transform:scale(0)}40%{transform:scale(1)}}
+
+  @media print {
+    body * { visibility: hidden; }
+    #chat-hist, #chat-hist * { visibility: visible; }
+    #chat-hist { position: absolute; left: 0; top: 0; width: 100%; height: auto; border: none; background: #fff !important; color: #000 !important; }
+    .msg { border: 1px solid #eee; margin-bottom: 20px; page-break-inside: avoid; background:#fff !important; padding:10px !important}
+    .msg-ai { border-left: 4px solid #f97316 !important; }
+    .msg-user { color: #000 !important; border-left: 4px solid #52525b !important; }
+    .md-code { background: #f0f0f0 !important; color: #111 !important; border: 1px solid #ddd !important; }
+    .copy-btn { display:none }
+  }
   .chat-input{padding:14px;border-top:1px solid var(--border);display:flex;gap:10px}
   .inp{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:9px 14px;color:var(--txt);font-family:var(--mono);font-size:12px;outline:none;transition:border-color .15s}
   .inp:focus{border-color:var(--accent)}
@@ -150,16 +181,80 @@
 
   ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
 
-  @media print{
-    .sidebar,.topbar,.actions,.btn,.nav,.upload-zone,.chat-input,.drawer-wrap{display:none!important}
-    .main{margin-left:0}
-    .page{display:block!important;padding:20px;break-inside:avoid}
-    body{background:#fff;color:#000}
-    .card,.mc{border:1px solid #ddd;background:#fff}
-    .mc-val{color:#000!important}
-    .badge{border:1px solid #ccc}
-    .terminal{background:#f5f5f5;color:#000;border:1px solid #ddd}
-    .t-ok,.t-info,.t-warn,.t-prompt{color:#333!important}
+  @media print {
+    /* Cache les éléments d'interface */
+    .sidebar, .topbar, .actions, .btn, .nav, .upload-zone, .chat-input, .drawer-wrap, .modal-wrap, .pipeline {
+      display: none !important;
+    }
+    
+    /* Ajuste le conteneur principal */
+    .main {
+      margin-left: 0 !important;
+      padding: 0 !important;
+      background: #fff !important;
+    }
+    
+    /* EXCEPTION : N'affiche QUE la page active */
+    .page {
+      display: none !important;
+    }
+    .page.active {
+      display: block !important;
+      padding: 0;
+    }
+
+    /* Style Premium pour le document */
+    body {
+      background: #fff !important;
+      color: #000 !important;
+      font-size: 11pt;
+    }
+    
+    .card, .mc {
+      border: 1px solid #e2e8f0 !important;
+      background: #fff !important;
+      box-shadow: none !important;
+      margin-bottom: 20px;
+      page-break-inside: avoid;
+    }
+    
+    .mc-val, h1, h2, h3, .card-title {
+      color: #000 !important;
+    }
+    
+    .badge {
+      border: 1px solid #cbd5e1 !important;
+      color: #000 !important;
+      background: #f1f5f9 !important;
+    }
+
+    .terminal {
+      background: #f8fafc !important;
+      color: #1e293b !important;
+      border: 1px solid #e2e8f0 !important;
+      font-size: 9pt;
+    }
+    
+    /* En-tête de rapport professionnel */
+    .page.active::before {
+      content: "SIATI - RAPPORT D'ACTIVITÉ SÉCURITÉ";
+      display: block;
+      text-align: left;
+      font-weight: 800;
+      font-size: 18pt;
+      margin-bottom: 5px;
+      color: #000;
+    }
+    .page.active::after {
+      content: "Généré par la plateforme SIATI Pentest Assistant";
+      display: block;
+      font-size: 9pt;
+      color: #64748b;
+      margin-top: 20px;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 10px;
+      text-align: right;
+    }
   }
 </style>
 </head>
@@ -223,7 +318,6 @@
     <div class="page-title" id="ptitle">Tableau de bord</div>
     <div class="actions">
       <button class="btn" onclick="nav('pipeline',document.getElementById('nav-pipeline'))">Import scan</button>
-      <button class="btn btn-accent" onclick="window.print()">Exporter PDF</button>
     </div>
   </div>
 
@@ -233,6 +327,7 @@
       <div class="mc crit"><div class="mc-label">Critique</div><div class="mc-val" id="m-crit">0</div><div class="mc-bar"></div></div>
       <div class="mc high"><div class="mc-label">Haute</div><div class="mc-val" id="m-high">0</div><div class="mc-bar"></div></div>
       <div class="mc med"><div class="mc-label">Moyenne</div><div class="mc-val" id="m-med">0</div><div class="mc-bar"></div></div>
+      <div class="mc" style="--c:var(--blue)"><div class="mc-label">Faible</div><div class="mc-val" id="m-low" style="color:var(--blue)">0</div><div class="mc-bar" style="background:var(--blue)"></div></div>
       <div class="mc info"><div class="mc-label">Score CVSS moyen</div><div class="mc-val" id="m-ml">0.0</div><div class="mc-bar"></div></div>
     </div>
     <div class="card">
@@ -246,8 +341,13 @@
 
   <!-- ═══ VULNS ═══ -->
   <div class="page" id="pg-vulns">
-    <div style="display:flex;gap:10px;margin-bottom:20px">
-      <input class="inp" id="s-inp" placeholder="Filtrer par CVE, IP, service..." oninput="filterV()" style="flex:1">
+    <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center">
+      <input class="inp" id="s-inp" placeholder="Filtrer par CVE, IP, service..." oninput="filterV()" style="flex:1;min-width:160px">
+      <div style="display:flex;align-items:center;gap:5px">
+        <span style="font-size:10px;color:var(--txt3);font-family:var(--mono)">JOUR :</span>
+        <input type="date" class="btn" id="s-date" onchange="filterV()" style="padding:6px">
+        <button class="btn btn-sm" onclick="document.getElementById('s-date').value='';filterV()" title="Effacer date">×</button>
+      </div>
       <select class="btn" id="s-sev" onchange="filterV()">
         <option value="">Toutes sévérités</option>
         <option value="critique">Critique</option>
@@ -255,9 +355,10 @@
         <option value="moyenne">Moyenne</option>
         <option value="faible">Faible</option>
       </select>
+      <button class="btn" style="background:var(--red);color:#fff;border:none" onclick="deleteSelectedVulns()">Supprimer sélection</button>
     </div>
     <div class="card">
-      <table><thead><tr><th>Statut</th><th>CVE</th><th>Hôte</th><th>Port / Service</th><th>CVSS</th><th>Score IA</th><th></th></tr></thead>
+      <table><thead><tr><th><input type="checkbox" id="check-all-vulns" onclick="toggleAllVulns(this)"></th><th>#</th><th>CVE</th><th>Hôte</th><th>Service</th><th>Sévérité</th><th>Score IA</th><th>Date</th><th>Détails</th><th>Statut</th></tr></thead>
       <tbody id="vuln-tbody"></tbody></table>
     </div>
   </div>
@@ -276,7 +377,7 @@
   <!-- ═══ PIPELINE IA ═══ -->
   <div class="page" id="pg-pipeline">
     <div class="pipeline" id="stepper" style="margin-bottom:20px">
-      <div class="p-step done" id="s1"><div class="p-num">01</div><div class="p-name">Ingestion</div><div class="p-st">Prêt</div></div>
+      <div class="p-step idle" id="s1"><div class="p-num">01</div><div class="p-name">Ingestion</div><div class="p-st">En attente</div></div>
       <div class="p-step idle" id="s2"><div class="p-num">02</div><div class="p-name">Enrichissement NVD</div><div class="p-st">En attente</div></div>
       <div class="p-step idle" id="s3"><div class="p-num">03</div><div class="p-name">CPE & ExploitDB</div><div class="p-st">En attente</div></div>
       <div class="p-step idle" id="s4"><div class="p-num">04</div><div class="p-name">Priorisation ML</div><div class="p-st">En attente</div></div>
@@ -303,8 +404,10 @@
       </select>
       <button class="btn btn-accent btn-sm" id="llm-gen-audit" onclick="llmGenerate('audit')" disabled>Audit</button>
       <button class="btn btn-sm" id="llm-gen-payload" onclick="llmGenerate('payload')" disabled>Payload</button>
+
     </div>
     <div class="chat-wrap">
+      <div class="chat-target-info" id="chat-target-ip">› AUCUNE CIBLE SÉLECTIONNÉE</div>
       <div class="chat-hist" id="chat-hist">
         <div class="msg msg-ai">Sélectionnez une vulnérabilité dans la liste pour démarrer une analyse RAG assistée.</div>
       </div>
@@ -348,6 +451,7 @@
       </div>
     </div>
   </div>
+
 </div>
 
 <!-- ═══ DRAWER ═══ -->
@@ -377,7 +481,7 @@
 
 <script>
 // ─── STATE ──────────────────────────────────────────────────────────────
-let vulns = [], selId = null;
+let vulns = [], selId = null, chatHistory = [];
 
 // ─── API ────────────────────────────────────────────────────────────────
 async function api(url, method, body) {
@@ -397,6 +501,30 @@ async function api(url, method, body) {
 }
 
 // ─── NAVIGATION ─────────────────────────────────────────────────────────
+// ─── UTILS ─────────────────────────────────────────────────────────────
+function fmtMD(t) {
+  if (!t) return '';
+  let res = t.replace(/```([\s\S]*?)```/g, (match, code) => {
+    return `<div class="md-code-wrap"><code class="md-code">${code.trim()}</code><button class="copy-btn" onclick="copyCode(this)">Copier</button></div>`;
+  });
+  res = res.replace(/^# (.*$)/gim, '<span class="md-h1">$1</span>');
+  res = res.replace(/^## (.*$)/gim, '<span class="md-h2">$1</span>');
+  res = res.replace(/^- (.*$)/gim, '<div class="md-list-item">$1</div>');
+  res = res.replace(/\*\*(.*?)\*\*/g, '<span class="md-bold">$1</span>');
+  return res;
+}
+
+function copyCode(btn) {
+  const code = btn.previousElementSibling.innerText;
+  navigator.clipboard.writeText(code).then(() => {
+    const old = btn.innerText;
+    btn.innerText = 'Copié !';
+    setTimeout(() => btn.innerText = old, 1500);
+  });
+}
+
+
+
 function nav(id, el) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -408,7 +536,8 @@ function nav(id, el) {
   }
   const titles = {
     dashboard: 'Tableau de bord', vulns: 'Vulnérabilités', hosts: 'Hôtes',
-    pipeline: 'Pipeline IA', llm: 'Assistance LLM', reports: 'Rapports', audit: 'Audit log'
+    pipeline: 'Pipeline IA', llm: 'Assistance LLM', reports: 'Rapports', 
+    audit: 'Audit log'
   };
   document.getElementById('ptitle').innerText = titles[id] || id;
   if (id === 'dashboard') loadDash();
@@ -425,8 +554,9 @@ async function loadDash() {
     const st = await api('/api/stats');
     document.getElementById('m-crit').innerText = st.critique || 0;
     document.getElementById('m-high').innerText = st.haute || 0;
-    document.getElementById('m-med').innerText = st.moyenne || 0;
-    document.getElementById('m-ml').innerText  = st.avg_cvss || '0.0';
+    document.getElementById('m-med').innerText  = st.moyenne || 0;
+    document.getElementById('m-low').innerText  = st.faible || 0;
+    document.getElementById('m-ml').innerText   = st.avg_cvss || '0.0';
     const vv = await api('/api/vulns');
     vulns = vv;
     document.getElementById('nav-vuln-count').innerText = vv.length;
@@ -460,10 +590,11 @@ function renderDashTop(data) {
 // ─── VULNS ──────────────────────────────────────────────────────────────
 async function loadVulns() {
   const tb = document.getElementById('vuln-tbody');
-  tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--txt3)">Chargement...</td></tr>';
+  tb.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--txt3)">Chargement...</td></tr>';
   try {
     const data = await api('/api/vulns');
     vulns = data;
+    document.getElementById('nav-vuln-count').innerText = data.length;
     renderVulns(data);
   } catch (e) {
     tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--red)">Erreur: ' + e.message + '</td></tr>';
@@ -473,29 +604,129 @@ async function loadVulns() {
 function renderVulns(data) {
   const tb = document.getElementById('vuln-tbody');
   if (!data.length) {
-    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--txt3)">Aucune vulnérabilité</td></tr>';
+    tb.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--txt3)">Aucune vulnérabilité</td></tr>';
     return;
   }
-  tb.innerHTML = data.map(v =>
-    '<tr>' +
-    '<td>' + (v.has_report ? '<span class="badge badge-ok">Analysé</span>' : '<span class="badge" style="background:var(--hover);color:var(--txt3)">Brut</span>') + '</td>' +
-    '<td style="font-family:var(--mono);font-size:11px">' + (v.cve || '—') + '</td>' +
-    '<td style="font-family:var(--mono);font-size:11px">' + v.ip + '</td>' +
-    '<td style="font-family:var(--mono);font-size:11px">' + (v.service || '?') + ':' + (v.port || '?') + '</td>' +
-    '<td>' + (v.cvss || '—') + '</td>' +
-    '<td style="font-family:var(--mono);color:var(--accent);font-size:11px">' + (v.score_ml ? v.score_ml.toFixed(3) : '—') + '</td>' +
-    '<td><button class="btn btn-sm" onclick="openVuln(' + v.id + ');event.stopPropagation()">Détails</button></td>' +
-    '</tr>'
-  ).join('');
+  tb.innerHTML = data.map(v => {
+    const dateStr = v.timestamp ? v.timestamp.split('T')[0] : '—';
+    const statusBadge = v.has_report
+      ? '<span class="badge badge-ok">Analysé</span>'
+      : '<span class="badge" style="background:var(--hover);color:var(--txt3)">À traiter</span>';
+    return '<tr>' +
+      '<td><input type="checkbox" class="vuln-check" value="' + v.id + '" onclick="event.stopPropagation()"></td>' +
+      '<td style="color:var(--txt3);font-family:var(--mono);font-size:11px">' + v.id + '</td>' +
+      '<td style="font-family:var(--mono);font-size:11px">' + (v.cve || '—') + '</td>' +
+      '<td style="font-family:var(--mono);font-size:11px">' + v.ip + '</td>' +
+      '<td style="font-family:var(--mono);font-size:11px">' + (v.service || '?') + ':' + (v.port || '?') + '</td>' +
+      '<td>' + sevBadge(v.label) + '</td>' +
+      '<td><div style="font-family:var(--mono);color:var(--accent);font-size:11px">' + (v.score_ml ? v.score_ml.toFixed(3) : '—') + '</div></td>' +
+      '<td style="font-family:var(--mono);font-size:10px;color:var(--txt3)">' + dateStr + '</td>' +
+      '<td><div style="display:flex;gap:4px"><button class="btn btn-sm" onclick="openVuln(' + v.id + ');event.stopPropagation()">Détails</button>' +
+      '<button class="btn btn-sm" style="color:var(--red);border-color:var(--red-dim)" onclick="deleteVuln(' + v.id + ');event.stopPropagation()">Supprim.</button></div></td>' +
+      '<td>' + statusBadge + '</td>' +
+      '</tr>';
+  }).join('');
 }
 
 function filterV() {
-  const q = document.getElementById('s-inp').value.toLowerCase();
-  const sev = document.getElementById('s-sev').value;
-  renderVulns(vulns.filter(v =>
-    (!q || (v.cve || '').toLowerCase().includes(q) || v.ip.includes(q) || (v.service || '').toLowerCase().includes(q)) &&
-    (!sev || (v.label || '').toLowerCase() === sev)
-  ));
+  const q    = document.getElementById('s-inp').value.toLowerCase();
+  const sev  = document.getElementById('s-sev').value;
+  const date = document.getElementById('s-date').value;
+  
+  let filtered = vulns.filter(v =>
+    (!q    || (v.cve || '').toLowerCase().includes(q) || v.ip.includes(q) || (v.service || '').toLowerCase().includes(q)) &&
+    (!sev  || (v.label || '').toLowerCase() === sev) &&
+    (!date || (v.timestamp && v.timestamp.includes(date)))
+  );
+  // Default sort by score ML
+  filtered.sort((a, b) => (b.score_ml || 0) - (a.score_ml || 0));
+  renderVulns(filtered);
+}
+
+async function deleteVuln(id) {
+  showConfirm(
+    'Supprimer la vulnérabilité ?',
+    'Cette action supprimera aussi le port (et l\'hôte si aucune autre vuln n\'y est liée).',
+    async () => {
+      try {
+        const r = await api('/api/vulns/' + id, 'DELETE');
+        if (r.ok) {
+          // Message précis selon ce qui a été nettoyé
+          let msg = r.message || 'Vulnérabilité supprimée';
+          log(msg, 'ok');
+          logAudit('Suppression — ' + msg);
+          // Rafraîchir vulns + hôtes + stats
+          // Rafraîchir vulns, hôtes et stats
+          loadVulns();
+          loadHosts();
+          _refreshStats();
+        } else {
+          log('Erreur: ' + (r.error || 'inconnue'), 'warn');
+        }
+      } catch (e) { log('Erreur suppression: ' + e.message, 'warn'); }
+    }
+  );
+}
+
+function toggleAllVulns(checkbox) {
+  const checkboxes = document.querySelectorAll('.vuln-check');
+  checkboxes.forEach(cb => cb.checked = checkbox.checked);
+}
+
+async function deleteSelectedVulns() {
+  const selected = Array.from(document.querySelectorAll('.vuln-check:checked')).map(cb => cb.value);
+  if (selected.length === 0) {
+    log('Aucune vulnérabilité sélectionnée', 'warn');
+    return;
+  }
+
+  showConfirm(
+    'Supprimer la sélection ?',
+    `Supprimer ${selected.length} vulnérabilité(s) ? Les ports et hôtes orphelins seront aussi supprimés.`,
+    async () => {
+      let successCount = 0, deletedServices = 0, deletedHosts = 0;
+      for (const id of selected) {
+        try {
+          const r = await api('/api/vulns/' + id, 'DELETE');
+          if (r.ok) {
+            successCount++;
+            if (r.deleted_service) deletedServices++;
+            if (r.deleted_host)    deletedHosts++;
+          }
+        } catch (e) { console.error('Erreur suppression', id, e); }
+      }
+      let msg = `${successCount} vulnérabilité(s) supprimée(s)`;
+      if (deletedServices) msg += ` · ${deletedServices} port(s) retiré(s)`;
+      if (deletedHosts)    msg += ` · ${deletedHosts} hôte(s) supprimé(s)`;
+      log(msg, 'ok');
+      logAudit('Suppression groupée — ' + msg);
+      document.getElementById('check-all-vulns').checked = false;
+      loadVulns();
+      _refreshHostsIfLoaded();
+      _refreshStats();
+    }
+  );
+}
+
+// Rafraîchit la page Hôtes si elle est actuellement visible
+function _refreshHostsIfLoaded() {
+  const hostPage = document.getElementById('pg-hosts');
+  if (hostPage && hostPage.classList.contains('active')) {
+    loadHosts();
+  } else {
+    // Forcer un rechargement au prochain affichage en vidant le cache
+    const tb = document.getElementById('host-tbody');
+    if (tb) tb.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--txt3)">Chargement...</td></tr>';
+  }
+}
+
+// Rafraîchit les compteurs du dashboard
+function _refreshStats() {
+  api('/api/stats').then(st => {
+    const el = document.getElementById('nav-vuln-count');
+    if (el) el.innerText = st.total_vulns || 0;
+    if (document.getElementById('pg-dashboard').classList.contains('active')) loadDash();
+  }).catch(() => {});
 }
 
 // ─── HOSTS ──────────────────────────────────────────────────────────────
@@ -535,9 +766,17 @@ async function openVuln(id) {
         '<div><div class="field-label">Service</div><div style="font-family:var(--mono);font-size:14px">' + (v.service || '?') + ':' + (v.port || '?') + '</div></div>' +
       '</div>' +
       '<div class="split field-group">' +
-        '<div><div class="field-label">CVSS</div><div style="font-size:20px;font-weight:600;color:var(--accent)">' + (v.cvss || '—') + '</div></div>' +
-        '<div><div class="field-label">Vecteur</div><div style="font-family:var(--mono);font-size:10px;color:var(--txt3)">' + (v.cvss_vector || '—') + '</div></div>' +
+        '<div><div class="field-label">CVSS Base</div><div style="font-size:20px;font-weight:600;color:var(--txt3)">' + (v.cvss || '—') + '</div></div>' +
+        '<div><div class="field-label">ML Risk Score</div><div style="font-size:20px;font-weight:600;color:var(--accent)">' + (v.scores_history && v.scores_history[0] ? v.scores_history[0].score.toFixed(2) : '—') + '</div></div>' +
       '</div>' +
+      (v.scores_history && v.scores_history[0] && v.scores_history[0].reasoning ? 
+        '<div class="field-group" style="background:rgba(249,115,22,0.05);padding:12px;border-radius:6px;border:1px solid rgba(249,115,22,0.1)">' +
+          '<div class="field-label" style="color:var(--accent)">Analyse de Priorisation (XAI)</div>' +
+          '<div style="font-size:12px;color:var(--txt2);line-height:1.5">' + v.scores_history[0].reasoning + '</div>' +
+          '<div style="font-size:10px;color:var(--txt3);margin-top:6px;font-family:var(--mono)">Indice de confiance : ' + (v.scores_history[0].confidence ? (v.scores_history[0].confidence * 100).toFixed(0) + '%' : 'N/A') + '</div>' +
+        '</div>' 
+      : '') +
+      '<div class="field-group"><div class="field-label">Vecteur CVSS</div><div style="font-family:var(--mono);font-size:10px;color:var(--txt3)">' + (v.cvss_vector || '—') + '</div></div>' +
       (v.exploit_msf ? '<div class="field-group"><div class="field-label">Module Metasploit</div><div style="font-family:var(--mono);font-size:11px;color:var(--green)">' + v.exploit_msf + '</div></div>' : '') +
       '<div class="field-group"><div class="field-label">Actions IA</div>' +
         '<div style="display:flex;gap:8px;margin-top:10px">' +
@@ -737,26 +976,159 @@ function closeReportViewer() {
   document.getElementById('rep-viewer').classList.remove('visible');
 }
 
+// ─── MARKDOWN → HTML CONVERTER (pour export PDF) ────────────────────────
+function md2html(md) {
+  if (!md) return '';
+  let html = '';
+  const lines = md.split('\n');
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // ── Code blocks (```) ──
+    if (line.trimStart().startsWith('```')) {
+      const lang = line.trim().slice(3).trim();
+      let code = '';
+      i++;
+      while (i < lines.length && !lines[i].trimStart().startsWith('```')) {
+        code += (code ? '\n' : '') + lines[i];
+        i++;
+      }
+      i++; // skip closing ```
+      const escaped = code.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const langLabel = lang ? '<span class="code-lang">' + lang + '</span>' : '';
+      html += '<div class="code-block">' + langLabel + '<pre><code>' + escaped + '</code></pre></div>';
+      continue;
+    }
+
+    // ── Tables (| ... | ... |) ──
+    if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+      let tableRows = [];
+      while (i < lines.length && lines[i].trim().startsWith('|') && lines[i].trim().endsWith('|')) {
+        tableRows.push(lines[i]);
+        i++;
+      }
+      if (tableRows.length >= 2) {
+        html += '<table>';
+        // Header row
+        const hdrCells = tableRows[0].split('|').filter(c => c.trim() !== '');
+        html += '<thead><tr>' + hdrCells.map(c => '<th>' + inlinemd(c.trim()) + '</th>').join('') + '</tr></thead>';
+        // Skip separator row (index 1), render body
+        html += '<tbody>';
+        for (let r = 2; r < tableRows.length; r++) {
+          const cells = tableRows[r].split('|').filter(c => c.trim() !== '');
+          html += '<tr>' + cells.map(c => '<td>' + inlinemd(c.trim()) + '</td>').join('') + '</tr>';
+        }
+        html += '</tbody></table>';
+      }
+      continue;
+    }
+
+    // ── GitHub-style alerts > [!TYPE] ──
+    if (line.trim().startsWith('> [!')) {
+      const alertMatch = line.match(/>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i);
+      if (alertMatch) {
+        const alertType = alertMatch[1].toUpperCase();
+        const alertColors = { NOTE:'#3b82f6', TIP:'#22c55e', IMPORTANT:'#f97316', WARNING:'#f59e0b', CAUTION:'#ef4444' };
+        const alertLabels = { NOTE:'Note', TIP:'Conseil', IMPORTANT:'Important', WARNING:'Attention', CAUTION:'Danger' };
+        let alertBody = '';
+        i++;
+        while (i < lines.length && lines[i].trim().startsWith('>')) {
+          alertBody += lines[i].replace(/^>\s?/, '') + '\n';
+          i++;
+        }
+        html += '<div class="alert" style="border-left:4px solid ' + (alertColors[alertType]||'#888') + '; background:' + (alertColors[alertType]||'#888') + '10; padding:12px 16px; border-radius:4px; margin:12px 0;">';
+        html += '<strong style="color:' + (alertColors[alertType]||'#888') + '">' + (alertLabels[alertType]||alertType) + '</strong><br>';
+        html += inlinemd(alertBody.trim());
+        html += '</div>';
+        continue;
+      }
+    }
+
+    // ── Blockquotes (> ...) ──
+    if (line.trim().startsWith('> ')) {
+      let quoteBody = '';
+      while (i < lines.length && lines[i].trim().startsWith('>')) {
+        quoteBody += lines[i].replace(/^>\s?/, '') + '\n';
+        i++;
+      }
+      html += '<blockquote>' + inlinemd(quoteBody.trim()) + '</blockquote>';
+      continue;
+    }
+
+    // ── Horizontal rule (---) ──
+    if (/^-{3,}$/.test(line.trim()) || /^\*{3,}$/.test(line.trim())) {
+      html += '<hr>';
+      i++;
+      continue;
+    }
+
+    // ── Headers ──
+    if (line.startsWith('### '))      { html += '<h3>' + inlinemd(line.slice(4)) + '</h3>'; i++; continue; }
+    if (line.startsWith('## '))       { html += '<h2>' + inlinemd(line.slice(3)) + '</h2>'; i++; continue; }
+    if (line.startsWith('# '))        { html += '<h1>' + inlinemd(line.slice(2)) + '</h1>'; i++; continue; }
+
+    // ── Unordered list items (- item) ──
+    if (/^\s*[-*]\s+/.test(line)) {
+      html += '<ul>';
+      while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) {
+        html += '<li>' + inlinemd(lines[i].replace(/^\s*[-*]\s+/, '')) + '</li>';
+        i++;
+      }
+      html += '</ul>';
+      continue;
+    }
+
+    // ── Empty line → skip ──
+    if (line.trim() === '') { i++; continue; }
+
+    // ── Regular paragraph ──
+    html += '<p>' + inlinemd(line) + '</p>';
+    i++;
+  }
+
+  return html;
+}
+
+// Inline markdown: bold, italic, inline code, links
+function inlinemd(text) {
+  if (!text) return '';
+  let s = text;
+  s = s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // Inline code
+  s = s.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
+  // Bold + italic
+  s = s.replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  // Bold
+  s = s.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  // Italic
+  s = s.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  // Checkboxes
+  s = s.replace(/\[x\]/gi, '☑');
+  s = s.replace(/\[ \]/g, '☐');
+  return s;
+}
+
+// ─── EXPORT PDF / MD ────────────────────────────────────────────────────
 async function dlReport(id, format) {
   try {
+    if (format === 'pdf') {
+      window.location.href = '/api/reports/' + id + '/pdf';
+      log('Téléchargement du PDF démarré', 'ok');
+      return;
+    }
+    
     const r = await api('/api/reports/' + id);
+    const content = r.content_md || '';
+    
     if (format === 'md') {
-      const blob = new Blob([r.content_md || ''], { type: 'text/markdown' });
+      const blob = new Blob([content], { type: 'text/markdown' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url; a.download = 'report_' + id + '.md'; a.click();
       URL.revokeObjectURL(url);
-    } else {
-      // PDF: open in new window with clean styling for print
-      const w = window.open('', '_blank');
-      w.document.write(
-        '<!DOCTYPE html><html><head><title>' + (r.title || 'Report') + '</title>' +
-        '<style>body{font-family:monospace;padding:40px;font-size:13px;line-height:1.8;white-space:pre-wrap;max-width:800px;margin:0 auto}' +
-        'h1{font-size:18px;margin-bottom:16px;border-bottom:2px solid #000;padding-bottom:8px}</style></head>' +
-        '<body><h1>' + (r.title || 'Rapport') + '</h1>' + (r.content_md || '') + '</body></html>'
-      );
-      w.document.close();
-      setTimeout(() => { w.print(); }, 400);
+      log('Téléchargement du MD terminé', 'ok');
     }
   } catch (e) { log('Erreur export: ' + e.message, 'warn'); }
 }
@@ -770,7 +1142,8 @@ async function loadAuditLog() {
     data.forEach(e => {
       const d = document.createElement('div');
       d.className = 't-line';
-      d.innerHTML = '<span class="t-info">›</span><span style="color:var(--txt3)"> [' + e.ts + '] ' + e.action + ' — ' + e.details + '</span>';
+      const ts = e.ts ? e.ts.split('T')[1].slice(0, 8) : '—';
+      d.innerHTML = '<span class="t-info">›</span><span style="color:var(--txt3)"> [' + ts + '] ' + e.action + ' — ' + e.details + '</span>';
       t.appendChild(d);
     });
     t.scrollTop = t.scrollHeight;
@@ -780,6 +1153,7 @@ async function loadAuditLog() {
 // ─── LLM PAGE ───────────────────────────────────────────────────────────
 function populateLLMSelect() {
   const sel = document.getElementById('llm-vuln-sel');
+  if (!sel) return;
   sel.innerHTML = '<option value="">Sélectionner une vulnérabilité</option>';
   vulns.forEach(v => {
     const opt = document.createElement('option');
@@ -791,14 +1165,24 @@ function populateLLMSelect() {
 
 function updateLLMSel() {
   const val = document.getElementById('llm-vuln-sel').value;
-  document.getElementById('llm-gen-audit').disabled = !val;
-  document.getElementById('llm-gen-payload').disabled = !val;
-  if (val) selId = parseInt(val);
+  const auditBtn = document.getElementById('llm-gen-audit');
+  const payloadBtn = document.getElementById('llm-gen-payload');
+  if (auditBtn) auditBtn.disabled = !val;
+  if (payloadBtn) payloadBtn.disabled = !val;
+  if (val) {
+    selId = parseInt(val);
+    chatHistory = []; // Reset history when changing vulnerability
+    const v = vulns.find(x => x.id === selId);
+    if(v) document.getElementById('chat-target-ip').innerText = `› CIBLE : ${v.ip} (${v.service || 'Inconnu'}) — ${v.cve || 'ID#'+v.id}`;
+    const hist = document.getElementById('chat-hist');
+    if (hist) hist.innerHTML = '<div class="msg msg-ai">Sélectionnez une action ou posez une question sur cette vulnérabilité.</div>';
+  }
 }
 
 async function llmGenerate(mode) {
   const hist = document.getElementById('chat-hist');
   const sel = document.getElementById('llm-vuln-sel');
+  if (!hist || !sel) return;
   const label = sel.options[sel.selectedIndex].text;
 
   const um = document.createElement('div');
@@ -809,13 +1193,18 @@ async function llmGenerate(mode) {
 
   const loading = document.createElement('div');
   loading.className = 'msg msg-ai';
-  loading.innerText = 'Traitement en cours...';
+  loading.innerHTML = '<div class="thinking"><div class="t-dot"></div><div class="t-dot"></div><div class="t-dot"></div></div>';
   hist.appendChild(loading);
   hist.scrollTop = hist.scrollHeight;
 
   try {
     const r = await api('/api/generate', 'POST', JSON.stringify({ vuln_id: selId, mode: mode }));
-    loading.innerHTML = '<pre>' + (r.content_md || 'Pas de réponse.') + '</pre>';
+    const respText = r.content_md || 'Pas de réponse.';
+    loading.innerHTML = fmtMD(respText);
+    
+    // Add to chat history
+    chatHistory.push({ role: 'assistant', content: respText });
+    
     log('LLM ' + mode + ' généré — vuln #' + selId, 'ok');
     logAudit('LLM ' + mode.toUpperCase() + ' — vuln #' + selId);
   } catch (e) {
@@ -827,8 +1216,9 @@ async function llmGenerate(mode) {
 function sendChat() {
   const inp = document.getElementById('chat-inp');
   const txt = inp.value.trim();
-  if (!txt) return;
+  if (!txt || !selId) return;
   const hist = document.getElementById('chat-hist');
+  if (!hist) return;
 
   const um = document.createElement('div');
   um.className = 'msg msg-user';
@@ -839,21 +1229,33 @@ function sendChat() {
 
   const loading = document.createElement('div');
   loading.className = 'msg msg-ai';
-  loading.innerText = 'Réflexion...';
+  loading.innerHTML = '<div class="thinking"><div class="t-dot"></div><div class="t-dot"></div><div class="t-dot"></div></div>';
   hist.appendChild(loading);
 
-  fetch('/api/generate', {
+  const payload = {
+    vuln_id: selId,
+    message: txt,
+    history: chatHistory
+  };
+
+  fetch('/api/chat', {
     method: 'POST',
-    body: JSON.stringify({ vuln_id: selId || 0, mode: 'audit' }),
+    body: JSON.stringify(payload),
     headers: { 'Content-Type': 'application/json' }
   })
   .then(r => r.json())
   .then(r => {
-    loading.innerHTML = '<pre>' + (r.content_md || 'Réponse non disponible.') + '</pre>';
+    if (r.ok) {
+        loading.innerHTML = '<div>' + fmtMD(r.response || 'Réponse non disponible.') + '</div>';
+        chatHistory.push({ role: 'user', content: txt });
+        chatHistory.push({ role: 'assistant', content: r.response });
+    } else {
+        loading.innerText = 'Erreur: ' + r.error;
+    }
     hist.scrollTop = hist.scrollHeight;
   })
-  .catch(() => {
-    loading.innerText = 'Erreur de connexion au modèle LLM.';
+  .catch((e) => {
+    loading.innerText = 'Erreur de connexion : ' + e.message;
     hist.scrollTop = hist.scrollHeight;
   });
 }
@@ -861,6 +1263,7 @@ function sendChat() {
 // ─── TERMINAL LOG ───────────────────────────────────────────────────────
 function log(msg, type) {
   const t = document.getElementById('term');
+  if (!t) return;
   const d = document.createElement('div');
   d.className = 't-line';
   const cls = type === 'ok' ? 't-ok' : type === 'warn' ? 't-warn' : 't-info';
@@ -871,10 +1274,11 @@ function log(msg, type) {
 
 function logAudit(msg) {
   const t = document.getElementById('audit-log');
+  if (!t) return;
   const d = document.createElement('div');
   d.className = 't-line';
-  const ts = new Date().toISOString().split('T');
-  d.innerHTML = '<span class="t-info">›</span><span style="color:var(--txt3)"> [' + ts[1].slice(0, 8) + '] ' + msg + '</span>';
+  const ts = new Date().toISOString().split('T')[1].slice(0, 8);
+  d.innerHTML = '<span class="t-info">›</span><span style="color:var(--txt3)"> [' + ts + '] ' + msg + '</span>';
   t.appendChild(d);
   t.scrollTop = t.scrollHeight;
 }

@@ -1,0 +1,31 @@
+# === FICHIER : config.yaml ===
+# Configuration globale du module LLM + RAG
+
+# Paramètres de la base de données
+database:
+  path: "data/siati.db"
+  top_n_vulns: 10
+
+# Paramètres RAG (Recherche Vectorielle)
+rag:
+  knowledge_dir: "data/knowledge_base"
+  output_dir: "data/faiss_index"
+  index_path: "data/faiss_index/pentest.index"
+  chunks_path: "data/faiss_index/chunks.json"
+  embedding_model: "all-MiniLM-L6-v2"
+  chunk_size: 500
+  chunk_overlap: 50
+  top_k: 5
+
+# Paramètres LLM (Ollama)
+llm:
+  ollama_url: "http://localhost:11434"
+  model: "mistral"  # mistral, llama3, phi3, etc.
+  timeout_seconds: 120
+  max_tokens: 2048
+  temperature: 0.1  # Basse pour limiter l'hallucination
+
+# Journalisation
+logging:
+  level: "INFO"
+  file: "logs/llm_module.log"

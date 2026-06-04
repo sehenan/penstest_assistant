@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  # Main SIATI Application
+  siati:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: siati-app
+    ports:
+      - "8505:8505"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - SIATI_DB_PATH=/app/data/pentest.db
+      - SIATI_LOG_LEVEL=INFO
+      - OLLAMA_HOST=http://ollama:11434
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./config.yaml:/app/config.yaml
+    depends_on:
+      - ollama
+      - redis
+    restart: unless-stopped
+    networks:
+      - siati-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8505/api/stats"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Ollama LLM Service
+  ollama:
+    image: ollama/ollama:latest
+    container_name: siati-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    restart: unless-stopped
+    networks:
+      - siati-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Redis for caching and rate limiting
+  redis:
+    image: redis:7-alpine
+    container_name: siati-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    networks:
+      - siati-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  ollama-data:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  siati-network:
+    driver: bridge

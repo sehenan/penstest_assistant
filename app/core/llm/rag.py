@@ -95,5 +95,5 @@ def retrieve_context(query: str, top_k: int = 3) -> str:
             
         return "\n\n---\n\n".join(results)
     except Exception as e:
-        logger.error("Erreur critique durant la recherche vectorielle: %s", e)
+        logger.exception("Erreur critique durant la recherche vectorielle: %s", e)
         return ""

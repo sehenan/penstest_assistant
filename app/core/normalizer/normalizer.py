@@ -71,25 +71,41 @@ def normalize_and_insert(
             desc = s.get("description")
             
             def add_vuln_if_unique(cve_val, desc_val):
-                # Check for existing vuln
+                # Normalisation
+                cve_clean = cve_val.strip().upper() if cve_val else None
+                desc_clean = desc_val.strip() if desc_val else None
+                
+                # Un CVE vide ou "NON-CVE" doit être traité comme None
+                if cve_clean in ["", "NON-CVE", "UNKNOWN"]:
+                    cve_clean = None
+
+                # Check for existing vuln for THIS service
                 query = select(Vulnerability).where(Vulnerability.service_id == service.id)
-                if cve_val:
-                    query = query.where(Vulnerability.cve == cve_val)
-                elif desc_val:
-                    query = query.where(Vulnerability.description == desc_val)
+                
+                if cve_clean:
+                    # Si on a un CVE, on déduplique sur le CVE uniquement pour ce service
+                    query = query.where(Vulnerability.cve == cve_clean)
+                elif desc_clean:
+                    # Si pas de CVE, on déduplique sur la description exacte
+                    query = query.where(Vulnerability.description == desc_clean)
                 else:
-                    return # Nothing to identify it
+                    return # Rien pour l'identifier
                 
                 existing_vuln = session.scalar(query)
                 if existing_vuln is None:
                     new_vuln = Vulnerability(
                         service_id=service.id,
-                        cve=cve_val,
-                        description=desc_val,
+                        cve=cve_clean,
+                        description=desc_clean,
                         source=scan_source,
                     )
                     session.add(new_vuln)
+                    session.flush() # Pour éviter les doublons dans la même boucle
                     created["vulns"] += 1
+                else:
+                    # On met à jour la description si elle était vide
+                    if desc_clean and not existing_vuln.description:
+                        existing_vuln.description = desc_clean
 
             if cves:
                 for cve in cves:

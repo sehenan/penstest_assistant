@@ -10,7 +10,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.core.ingest import ingest_scan_file
-from app.core.enrichment.nvd import enrich_vulnerabilities_from_nvd
+from app.core.enrichment.nvd import enrich_vulnerabilities_from_local_intel
 from app.core.enrichment.cpe import enrich_services_with_cpe
 from app.core.enrichment.exploit_db import enrich_exploits
 from app.core.ml.data_manager import DataManager
@@ -41,7 +41,7 @@ class FullPipeline:
             
             # 2. Enrichissement NVD (CVE Details)
             logger.info("Pipeline Step 2: NVD Enrichment...")
-            self.stats["enrichment_nvd"] = enrich_vulnerabilities_from_nvd(self.session)
+            self.stats["enrichment_nvd"] = enrich_vulnerabilities_from_local_intel(self.session)
             
             # 3. Enrichissement CPE (Versions)
             logger.info("Pipeline Step 3: CPE Enrichment...")

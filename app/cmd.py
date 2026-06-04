@@ -33,8 +33,11 @@ def ingest(file_paths: List[str]):
                 typer.secho(f"Fichier inexistant : {path}", fg=typer.colors.RED)
                 continue
             typer.secho(f"--> Ingestion de {path} en cours...", fg=typer.colors.BLUE)
-            counts = ingest_scan_file(str(path), session)
-            typer.secho(f"Succès | Ajouts: {counts}", fg=typer.colors.GREEN)
+            try:
+                counts = ingest_scan_file(str(path), session)
+                typer.secho(f"Succès | Ajouts: {counts}", fg=typer.colors.GREEN)
+            except Exception as e:
+                typer.secho(f"Erreur lors de l'ingestion de {path} : {e}", fg=typer.colors.RED)
     finally:
         session.close()
 
@@ -43,9 +46,9 @@ def enrich():
     """[Phase 2] Enrichissement CVE via cache local (NVD, CPE, Exploit)."""
     session = get_session()
     try:
-        from app.core.enrichment import enrich_vulnerabilities_from_nvd, enrich_services_with_cpe, enrich_exploits
-        typer.secho("--> Rapprochement NVD...", fg=typer.colors.BLUE)
-        r1 = enrich_vulnerabilities_from_nvd(session)
+        from app.core.enrichment import enrich_vulnerabilities_from_local_intel, enrich_services_with_cpe, enrich_exploits
+        typer.secho("--> Rapprochement NVD / EPSS / KEV...", fg=typer.colors.BLUE)
+        r1 = enrich_vulnerabilities_from_local_intel(session)
         typer.echo(f"  * {r1}")
         
         typer.secho("--> Résolution CPE...", fg=typer.colors.BLUE)
@@ -138,6 +141,62 @@ def playbook(vuln_id: int, mode: str = "audit"):
     finally:
         session.close()
 
+@app.command("playbook-v2")
+def playbook_v2(vuln_id: int, top_k: int = 5):
+    """[Phase 4 PRO] Génère un playbook RAG STRICT avec citations de sources."""
+    import yaml
+    try:
+        with open("config.yaml", "r") as f:
+            config = yaml.safe_load(f)
+        
+        from app.db.database import get_session
+        from app.db.models import Vulnerability, ScoreML, Service, Host, Exploit
+        from app.module_llm.llm.generator import Generator
+        from app.module_llm.rag.retriever import Retriever, get_retrieval_query
+        
+        session = get_session()
+        # Query pour récupérer toutes les infos nécessaires
+        row = session.query(
+            Vulnerability.id.label("vuln_id"), 
+            Vulnerability.cve, Vulnerability.cvss_score, Vulnerability.cvss_vector, Vulnerability.description,
+            Service.service, Service.port, Service.version,
+            Exploit.disponible.label("exploit_disponible"), Exploit.metasploit_module
+        ).join(Service).outerjoin(Exploit).filter(Vulnerability.id == vuln_id).first()
+        
+        if not row:
+            typer.secho(f"Vulnérabilité ID {vuln_id} introuvable.", fg=typer.colors.RED)
+            return
+
+        vuln_dict = dict(row._mapping)
+        
+        typer.secho(f"--> Recherche RAG STRICT pour {vuln_dict['cve']}...", fg=typer.colors.BLUE)
+        retriever = Retriever(config)
+        context = retriever.retrieve(get_retrieval_query(vuln_dict), k=top_k)
+        
+        typer.secho(f"--> Génération Playbook via Ollama ({config['llm']['model']})...", fg=typer.colors.BLUE)
+        generator = Generator(config)
+        playbook_text = generator.generate_playbook(vuln_dict, context)
+        
+        if playbook_text:
+            from datetime import datetime
+            from app.db.models import Report
+            report = Report(
+                titre=f"Playbook V2 - {vuln_dict['cve']}",
+                contenu_md=playbook_text,
+                timestamp=datetime.utcnow(),
+                vuln_id=vuln_id,
+                stage="audit"
+            )
+            session.add(report)
+            session.commit()
+            typer.secho(f"Succès | Playbook V2 généré (Rapport ID: {report.id})", fg=typer.colors.GREEN)
+            typer.echo("\n" + "="*20 + " APERÇU " + "="*20)
+            typer.echo(playbook_text[:500] + "...")
+        else:
+            typer.secho("Échec de la génération.", fg=typer.colors.RED)
+    except Exception as e:
+        typer.secho(f"Erreur : {e}", fg=typer.colors.RED)
+
 @app.command("exploit")
 def exploit(vuln_id: int):
     """Génère le payload final d'exploitation pour une vulnérabilité validée."""
@@ -182,6 +241,22 @@ def index_rag(knowledge_dir: str = "data/knowledge"):
         
     build_index(docs)
     typer.secho(f"Succès | {len(docs)} documents indexés.", fg=typer.colors.GREEN)
+
+@app.command("index-rag-v2")
+def index_rag_v2():
+    """[Phase 4a PRO] Indexation FAISS V2 (Tiktoken + Metadata)."""
+    import yaml
+    from app.module_llm.rag.indexer import Indexer
+    
+    try:
+        with open("config.yaml", "r") as f:
+            config = yaml.safe_load(f)
+        
+        indexer = Indexer(config)
+        indexer.build_index(config['rag']['knowledge_dir'], config['rag']['output_dir'])
+        typer.secho("Indexation V2 terminée avec succès.", fg=typer.colors.GREEN)
+    except Exception as e:
+        typer.secho(f"Erreur : {e}", fg=typer.colors.RED)
 
 @app.command("auto")
 def auto(file_paths: List[str], top_n: int = 3):
@@ -239,5 +314,19 @@ def check():
     from app.core.check import run_diagnostics
     run_diagnostics()
 
+@app.command("deepeval-evaluate")
+def deepeval_evaluate(
+    sample_size: int = typer.Option(5, "--sample-size", help="Nombre de vulnérabilités à évaluer (default: 5)"),
+    model: str = typer.Option("claude-3-5-sonnet-latest", "--model", help="Modèle Claude à utiliser comme juge")
+):
+    """[PFE] Évalue les modèles de priorisation ML et de RAG avec DeepEval et Anthropic."""
+    typer.secho("--> Lancement de l'évaluation DeepEval + Anthropic...", fg=typer.colors.MAGENTA)
+    from app.scripts.evaluate_deepeval import run_evaluation
+    try:
+        run_evaluation(sample_size=sample_size, claude_model_name=model)
+    except Exception as e:
+        typer.secho(f"Erreur durant l'évaluation : {e}", fg=typer.colors.RED)
+
 if __name__ == "__main__":
     app()
+

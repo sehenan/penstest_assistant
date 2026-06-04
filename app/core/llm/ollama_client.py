@@ -11,9 +11,9 @@ logger = logging.getLogger(__name__)
 # Config Air-Gap : L'API réside sur le localhost par défaut.
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 
-# Modèle par défaut : llama3 (8b). Mistral est souvent plus rapide sur CPU.
-# Remplacement par tinyllama en raison des contraintes matérielles sévères
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "tinyllama")
+# Modèle par défaut : mistral. Mistral est souvent plus rapide sur CPU.
+# Remplacement par mistral.
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "mistral:7b-instruct-q4_K_M")
 OLLAMA_TIMEOUT = int(os.environ.get("OLLAMA_TIMEOUT", "1800"))
 
 
@@ -28,35 +28,45 @@ def check_ollama_status() -> bool:
 
 def generate_text(prompt: str, system_prompt: str = "") -> str | None:
     """
-    Interagit avec l'API Ollama (generate endpoint) avec paramétrages conservateurs.
-    (Température basse pour minimiser l'hallucination et maximiser le ciblage technique).
+    Standard generation (legacy wrapper for chat).
     """
-    url = f"{OLLAMA_HOST}/api/generate"
+    return chat([{"role": "user", "content": prompt}], system_prompt)
+
+def chat(messages: list[dict], system_prompt: str = "") -> str | None:
+    """
+    Utilise l'endpoint /api/chat pour maintenir un contexte de conversation.
+    messages: Liste de dict {"role": "user/assistant", "content": "..."}
+    """
+    url = f"{OLLAMA_HOST}/api/chat"
     
     if not check_ollama_status():
-        logger.error("Serveur Ollama inaccessible sur %s", OLLAMA_HOST)
+        logger.error("Serveur Ollama inaccessible.")
         return None
+
+    # Injection du system prompt comme premier message si fourni
+    full_messages = []
+    if system_prompt:
+        full_messages.append({"role": "system", "content": system_prompt})
+    full_messages.extend(messages)
 
     payload = {
         "model": OLLAMA_MODEL,
-        "prompt": prompt,
-        "system": system_prompt,
+        "messages": full_messages,
         "stream": False,
         "options": {
-            "temperature": 0.2, # Bridage pour rigueur logicielle
-            "num_predict": 1024 # Longueur suffisante pour élaborer un Playbook
+            "temperature": 0.1,
+            "num_predict": 1024,
+            "repeat_penalty": 1.25,
+            "top_p": 0.6,
+            "top_k": 20,
+            "stop": ["Introduction:", "Overview:", "Bibliography:", "Conclusion:"]
         }
     }
     
-    logger.info("Génération LLM via %s (Timeout: %ds)...", OLLAMA_MODEL, OLLAMA_TIMEOUT)
     try:
         r = requests.post(url, json=payload, timeout=OLLAMA_TIMEOUT)
         r.raise_for_status()
-        return r.json().get("response", "")
-    except requests.exceptions.Timeout:
-        logger.error("Timeout d'Ollama : le modèle %s est trop lent pour votre matériel.", OLLAMA_MODEL)
-        logger.error("Astuce : essayez un modèle plus léger comme 'mistral' ou 'phi3'.")
-        return None
+        return r.json().get("message", {}).get("content", "")
     except Exception as e:
-        logger.error("Ollama LLM générique Erreur: %s", e)
+        logger.error("Erreur Chat Ollama: %s", e)
         return None

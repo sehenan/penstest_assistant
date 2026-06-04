@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -E \"\\\\.yml$|\\\\.yaml$|Dockerfile|docker-compose\")",
+      "Bash(python main.py -web)",
+      "Bash(pip install *)"
+    ]
+  }
+}

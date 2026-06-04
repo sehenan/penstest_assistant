@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.db.database import Base
@@ -12,6 +12,8 @@ class Host(Base):
     hostname = Column(String, nullable=True)
     os = Column(String, nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (UniqueConstraint('ip', name='_host_ip_uc'),)
 
     services = relationship("Service", back_populates="host", cascade="all, delete-orphan")
 
@@ -24,6 +26,9 @@ class Service(Base):
     service = Column(String, nullable=True)
     version = Column(String, nullable=True)
     banner = Column(Text, nullable=True)
+    cpe = Column(String, nullable=True, index=True)   # CPE 2.3 extrait du scan
+    
+    __table_args__ = (UniqueConstraint('host_id', 'port', 'protocol', name='_service_port_proto_uc'),)
 
     host = relationship("Host", back_populates="services")
     vulnerabilities = relationship("Vulnerability", back_populates="service", cascade="all, delete-orphan")
@@ -37,7 +42,12 @@ class Vulnerability(Base):
     cvss_vector = Column(String, nullable=True)
     cwe = Column(String, nullable=True)
     description = Column(Text, nullable=True)
+    epss_score = Column(Float, nullable=True)
+    is_kev = Column(Boolean, default=False)
     source = Column(String, nullable=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (UniqueConstraint('service_id', 'cve', 'description', name='_vuln_unique_uc'),)
 
     service = relationship("Service", back_populates="vulnerabilities")
     scores = relationship("ScoreML", back_populates="vulnerability", cascade="all, delete-orphan")
@@ -56,6 +66,8 @@ class ScoreML(Base):
     vuln_id = Column(Integer, ForeignKey("vulnerabilities.id"), nullable=False)
     score = Column(Float, nullable=True)
     label = Column(String, nullable=True)
+    reasoning = Column(Text, nullable=True)  # Explication XAI
+    confidence = Column(Float, nullable=True) # Confiance du modèle
     timestamp = Column(DateTime, default=datetime.utcnow)
 
     vulnerability = relationship("Vulnerability", back_populates="scores")

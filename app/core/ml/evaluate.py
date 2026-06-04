@@ -2,26 +2,30 @@
 evaluate.py
 ===========
 Script autonome d'évaluation du modèle XGBoost.
-Génère 5 graphiques de performance pour le mémoire PFE.
-
-Sources de données (priorité décroissante) :
-  1. data/nvd_training_data.csv  — NVD + CISA KEV + ExploitDB (officiel)
-  2. DB SQLite locale            — scans ingérés via pipeline
+Génère 6 graphiques de performance pour le mémoire PFE.
 
 Graphiques produits dans data/evaluation/ :
   01_actual_vs_predicted.png   — Scatter prédictions vs vérité terrain
-  02_feature_importance.png    — Importance des 11 features XGBoost
+  02_feature_importance.png    — Importance des features XGBoost
   03_residuals.png             — Distribution des résidus
-  04_learning_curve.png        — Courbe d'apprentissage (RMSE vs taille)
-  05_cvss_distribution.png     — Distribution CVSS + ratio positifs/négatifs
+  04_learning_curve.png        — Courbe d'apprentissage
+  05_dataset_overview.png      — Distribution CVSS + ratio positifs/négatifs
+  06_confusion_matrix.png      — Performance par classe (Critique, Haut, etc.)
 """
 import logging
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import seaborn as sns
 import numpy as np
 import pandas as pd
-from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.metrics import (
+    mean_squared_error, 
+    r2_score, 
+    confusion_matrix, 
+    ConfusionMatrixDisplay,
+    classification_report
+)
 from sklearn.model_selection import learning_curve, train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
@@ -51,27 +55,26 @@ FEATURE_LABELS = {
     "ui_num":        "User Interaction",
 }
 
+def _get_categorical_labels(y: pd.Series) -> pd.Series:
+    """Discrétisation (0-1 -> Catégories)."""
+    bins = [-0.01, 0.0, 0.35, 0.55, 0.8, 1.01]
+    labels = ["Info", "Faible", "Moyen", "Haut", "Critique"]
+    return pd.cut(y, bins=bins, labels=labels)
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  Chargement des données
 # ─────────────────────────────────────────────────────────────────────────────
 def _load_data() -> tuple[pd.DataFrame, str]:
-    """
-    Charge les données via le DataManager (Pro).
-    """
     init_db()
     session = get_session()
     dm = DataManager()
-    
     try:
         df = dm.prepare_unified_dataset(session)
         if df.empty:
             raise RuntimeError("Aucune donnée disponible pour l'évaluation.")
-        
-        source = "Dataset Unifié (NVD + Local)"
-        return df, source
+        return df, "Dataset Unifié (NVD + Local)"
     finally:
         session.close()
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Graphiques
@@ -87,203 +90,127 @@ def _plot_actual_vs_predicted(y_test, y_pred, r2, rmse, source: str) -> None:
     ax.set_ylim(0, 10.5)
     ax.grid(True, linestyle="--", alpha=0.5)
     ax.legend()
-    ax.text(
-        0.05, 0.92,
-        f"R² = {r2:.3f}\nRMSE = {rmse:.3f}",
-        transform=ax.transAxes, fontsize=11,
-        bbox=dict(facecolor="white", alpha=0.85, boxstyle="round,pad=0.4"),
-    )
+    ax.text(0.05, 0.92, f"R² = {r2:.3f}\nRMSE = {rmse:.3f}", transform=ax.transAxes, fontsize=11,
+            bbox=dict(facecolor="white", alpha=0.85, boxstyle="round,pad=0.4"))
     fig.tight_layout()
     fig.savefig(EVAL_DIR / "01_actual_vs_predicted.png", dpi=300)
     plt.close(fig)
     logger.info("✔ 01_actual_vs_predicted.png")
 
-
 def _plot_feature_importance(pipeline: Pipeline, feature_names: list[str]) -> None:
     xgb_model   = pipeline.named_steps["xgb"]
     importances = xgb_model.feature_importances_
     labels      = [FEATURE_LABELS.get(f, f) for f in feature_names]
-
     idx = np.argsort(importances)
-
     fig, ax = plt.subplots(figsize=(9, max(5, len(labels) * 0.5 + 1)))
     colors = plt.cm.viridis(np.linspace(0.2, 0.85, len(idx)))
     bars = ax.barh(range(len(idx)), importances[idx], color=colors[idx], align="center", height=0.65)
-
     ax.set_yticks(range(len(idx)))
     ax.set_yticklabels([labels[i] for i in idx], fontsize=10)
-    ax.set_xlabel("Importance Relative (gain)", fontsize=10)
-    ax.set_title(
-        f"Importance des Features — XGBoost\n({len(labels)} variables)",
-        fontsize=12, pad=10
-    )
-    ax.grid(axis="x", linestyle="--", alpha=0.5)
-
-    # Annotations valeurs
+    ax.set_xlabel("Importance Relative (gain)")
+    ax.set_title("Importance des Features")
     for bar, imp in zip(bars, importances[idx]):
-        ax.text(imp + 0.001, bar.get_y() + bar.get_height() / 2,
-                f"{imp:.3f}", va="center", fontsize=8)
-
+        ax.text(imp + 0.001, bar.get_y() + bar.get_height() / 2, f"{imp:.3f}", va="center", fontsize=8)
     fig.tight_layout()
     fig.savefig(EVAL_DIR / "02_feature_importance.png", dpi=300)
     plt.close(fig)
     logger.info("✔ 02_feature_importance.png")
 
-
 def _plot_residuals(y_test, y_pred) -> None:
     residuals = y_test - y_pred
-
     fig, axes = plt.subplots(1, 2, figsize=(13, 5))
-
-    # Scatter résidus vs prédictions
-    axes[0].scatter(y_pred, residuals, alpha=0.5, color="#10B981", edgecolor="k",
-                    linewidths=0.3, s=35)
-    axes[0].axhline(0, color="r", linestyle="--", lw=2)
-    axes[0].set_xlabel("Score Prédit")
-    axes[0].set_ylabel("Résidu (Réel − Prédit)")
+    axes[0].scatter(y_pred, residuals, alpha=0.5, color="#10B981")
+    axes[0].axhline(0, color="r", linestyle="--")
     axes[0].set_title("Résidus vs. Prédictions")
-    axes[0].grid(True, linestyle="--", alpha=0.4)
-
-    # Histogramme des résidus
-    axes[1].hist(residuals, bins=30, color="#6366F1", edgecolor="k", linewidth=0.5, alpha=0.8)
-    axes[1].axvline(0, color="r", linestyle="--", lw=2)
-    axes[1].set_xlabel("Résidu")
-    axes[1].set_ylabel("Fréquence")
-    axes[1].set_title(f"Distribution des Résidus\nMoyenne={residuals.mean():.3f}, σ={residuals.std():.3f}")
-    axes[1].grid(True, linestyle="--", alpha=0.4)
-
-    fig.suptitle("Analyse des Erreurs de Prédiction (Résidus)", fontsize=13, fontweight="bold")
-    fig.tight_layout()
+    axes[1].hist(residuals, bins=30, color="#6366F1", alpha=0.8)
+    axes[1].set_title(f"Distribution des Résidus (σ={residuals.std():.3f})")
     fig.savefig(EVAL_DIR / "03_residuals.png", dpi=300)
     plt.close(fig)
     logger.info("✔ 03_residuals.png")
 
+def _plot_confusion_matrix(y_test, y_pred) -> None:
+    """Preuve de performance catégorielle (CRUCIAL POUR PFE)."""
+    y_test_cat = _get_categorical_labels(y_test)
+    y_pred_cat = _get_categorical_labels(pd.Series(y_pred))
+    
+    classes = ["Info", "Faible", "Moyen", "Haut", "Critique"]
+    present_classes = [c for c in classes if c in y_test_cat.unique() or c in y_pred_cat.unique()]
+    
+    cm = confusion_matrix(y_test_cat, y_pred_cat, labels=present_classes)
+    fig, ax = plt.subplots(figsize=(8, 7))
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=present_classes)
+    disp.plot(cmap="Blues", ax=ax, colorbar=False)
+    ax.set_title("Matrice de Confusion (Classes de Sévérité)")
+    fig.tight_layout()
+    fig.savefig(EVAL_DIR / "06_confusion_matrix.png", dpi=300)
+    plt.close(fig)
+    
+    # Rapport texte
+    report = classification_report(y_test_cat, y_pred_cat, labels=present_classes)
+    with open(EVAL_DIR / "classification_report.txt", "w") as f:
+        f.write(report)
+    logger.info("✔ 06_confusion_matrix.png & classification_report.txt")
 
 def _plot_learning_curve(pipeline: Pipeline, X: pd.DataFrame, y: pd.Series) -> None:
     train_sizes, train_scores, test_scores = learning_curve(
-        pipeline, X, y,
-        cv=5, n_jobs=1,
-        train_sizes=np.linspace(0.1, 1.0, 10),
-        scoring="neg_mean_squared_error",
-        random_state=42,
+        pipeline, X, y, cv=3, train_sizes=np.linspace(0.1, 1.0, 10),
+        scoring="neg_mean_squared_error", random_state=42
     )
     tr_mean = np.sqrt(-np.mean(train_scores, axis=1))
-    tr_std  = np.sqrt(np.std(-train_scores,  axis=1))
-    te_mean = np.sqrt(-np.mean(test_scores,  axis=1))
-    te_std  = np.sqrt(np.std(-test_scores,   axis=1))
-
+    te_mean = np.sqrt(-np.mean(test_scores, axis=1))
     fig, ax = plt.subplots(figsize=(8, 5))
-    ax.plot(train_sizes, tr_mean, "o-", color="#EF4444", label="Erreur Entraînement")
-    ax.fill_between(train_sizes, tr_mean - tr_std, tr_mean + tr_std, alpha=0.15, color="#EF4444")
-    ax.plot(train_sizes, te_mean, "o-", color="#22C55E", label="Erreur Validation Croisée")
-    ax.fill_between(train_sizes, te_mean - te_std, te_mean + te_std, alpha=0.15, color="#22C55E")
-    ax.set_title("Courbe d'Apprentissage (Learning Curve)", fontsize=12)
-    ax.set_xlabel("Taille du Dataset")
-    ax.set_ylabel("RMSE (↓ = mieux)")
-    ax.legend(loc="upper right")
-    ax.grid(True, linestyle="--", alpha=0.5)
-    fig.tight_layout()
+    ax.plot(train_sizes, tr_mean, "o-", label="Train")
+    ax.plot(train_sizes, te_mean, "o-", label="Cross-Val")
+    ax.set_title("Courbe d'Apprentissage (Learning Curve)")
+    ax.set_xlabel("Taille Dataset")
+    ax.set_ylabel("RMSE")
+    ax.legend()
     fig.savefig(EVAL_DIR / "04_learning_curve.png", dpi=300)
     plt.close(fig)
     logger.info("✔ 04_learning_curve.png")
 
-
 def _plot_dataset_overview(df: pd.DataFrame, source: str) -> None:
-    """Graphique bonus : distribution CVSS + ratio positifs/négatifs (label)."""
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-
-    # Distribution CVSS
-    axes[0].hist(df["cvss_score"], bins=25, color="#8B5CF6", edgecolor="k",
-                 linewidth=0.4, alpha=0.85)
-    axes[0].axvline(df["cvss_score"].mean(), color="r", linestyle="--",
-                    label=f"Moyenne = {df['cvss_score'].mean():.2f}")
-    axes[0].set_xlabel("Score CVSS")
-    axes[0].set_ylabel("Nombre de CVEs")
-    axes[0].set_title("Distribution des Scores CVSS")
-    axes[0].legend()
-    axes[0].grid(True, linestyle="--", alpha=0.4)
-
-    # Ratio positifs / négatifs
-    n_pos = int((df["has_exploit"] == 1).sum())
-    n_neg = int((df["has_exploit"] == 0).sum())
-    labels_pie = [f"Exploités\n(label=1)\n{n_pos}", f"Non exploités\n(label=0)\n{n_neg}"]
-    colors_pie  = ["#EF4444", "#3B82F6"]
-    axes[1].pie(
-        [n_pos, n_neg], labels=labels_pie, colors=colors_pie,
-        autopct="%1.1f%%", startangle=90, textprops={"fontsize": 10},
-        wedgeprops={"edgecolor": "white", "linewidth": 1.5},
-    )
-    axes[1].set_title("Ratio Positifs / Négatifs\n(has_exploit)")
-
-    fig.suptitle(f"Aperçu du Dataset — {source}", fontsize=12, fontweight="bold")
-    fig.tight_layout()
+    axes[0].hist(df["cvss_score"], bins=25, color="#8B5CF6")
+    axes[0].set_title("Distribution CVSS")
+    
+    expl_col = "is_exploited" if "is_exploited" in df.columns else "has_exploit"
+    n_pos = int((df[expl_col] == 1).sum())
+    n_neg = int((df[expl_col] == 0).sum())
+    axes[1].pie([n_pos, n_neg], labels=["Exploités", "Non-expl."], autopct="%1.1f%%")
+    axes[1].set_title("Ratio Exploits")
     fig.savefig(EVAL_DIR / "05_dataset_overview.png", dpi=300)
     plt.close(fig)
     logger.info("✔ 05_dataset_overview.png")
 
-
 # ─────────────────────────────────────────────────────────────────────────────
-#  Pipeline principal
+#  Main
 # ─────────────────────────────────────────────────────────────────────────────
 def generate_evaluation_plots() -> None:
-    """Génère tous les graphiques d'évaluation dans data/evaluation/."""
-    logger.info("═" * 55)
-    logger.info(" ÉVALUATION DU MODÈLE XGBOOST — PFE Pentest Assistant")
-    logger.info("═" * 55)
-
-    # 1. Chargement
-    df, data_source = _load_data()
-    logger.info("Source utilisée : %s", data_source)
-    logger.info("Dataset shape   : %s", df.shape)
-
-    # 2. Features
+    logger.info("🚀 Début de la génération du rapport de performance...")
+    df, source = _load_data()
     X, y = get_training_features(df)
-    feature_names = list(X.columns)
-    logger.info("Features        : %s", feature_names)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    # 3. Split 80/20
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
-    logger.info("Train: %d  |  Test: %d", len(X_train), len(X_test))
-
-    # 4. Entraînement
     pipeline = Pipeline([
         ("scaler", StandardScaler()),
-        ("xgb", XGBRegressor(
-            n_estimators=200,
-            learning_rate=0.08,
-            max_depth=5,
-            subsample=0.85,
-            colsample_bytree=0.85,
-            objective="reg:squarederror",
-            random_state=42,
-        )),
+        ("xgb", XGBRegressor(n_estimators=300, learning_rate=0.05, max_depth=6, random_state=42))
     ])
     pipeline.fit(X_train, y_train)
-
-    # 5. Métriques
     y_pred = pipeline.predict(X_test)
-    mse    = mean_squared_error(y_test, y_pred)
-    rmse   = float(np.sqrt(mse))
-    r2     = float(r2_score(y_test, y_pred))
-    logger.info("─" * 40)
-    logger.info("RMSE : %.4f", rmse)
-    logger.info("R²   : %.4f", r2)
-    logger.info("─" * 40)
+    
+    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+    r2 = r2_score(y_test, y_pred)
 
-    # 6. Graphiques
     EVAL_DIR.mkdir(parents=True, exist_ok=True)
-    _plot_actual_vs_predicted(y_test, y_pred, r2, rmse, data_source)
-    _plot_feature_importance(pipeline, feature_names)
+    _plot_actual_vs_predicted(y_test, y_pred, r2, rmse, source)
+    _plot_feature_importance(pipeline, list(X.columns))
     _plot_residuals(y_test, y_pred)
+    _plot_confusion_matrix(y_test, y_pred)
     _plot_learning_curve(pipeline, X, y)
-    _plot_dataset_overview(df, data_source)
+    _plot_dataset_overview(df, source)
 
-    logger.info("═" * 55)
-    logger.info("✅ 5 graphiques sauvegardés dans : %s", EVAL_DIR.absolute())
-    logger.info("═" * 55)
-
+    logger.info("✅ Évaluation terminée. Rapports disponibles dans : %s", EVAL_DIR.absolute())
 
 if __name__ == "__main__":
     generate_evaluation_plots()

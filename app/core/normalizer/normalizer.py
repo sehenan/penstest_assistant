@@ -57,6 +57,7 @@ def normalize_and_insert(
                     service=s.get("service"),
                     version=s.get("version"),
                     banner=s.get("banner"),
+                    cpe=s.get("cpe"),   # CPE extrait par le parser (nmap/openvas)
                 )
                 session.add(service)
                 session.flush()
@@ -65,7 +66,8 @@ def normalize_and_insert(
                 # Update existing service info if provided
                 if s.get("service"): service.service = s.get("service")
                 if s.get("version"): service.version = s.get("version")
-                if s.get("banner"): service.banner = s.get("banner")
+                if s.get("banner"):  service.banner  = s.get("banner")
+                if s.get("cpe") and not service.cpe: service.cpe = s.get("cpe")
 
             cves = s.get("cves") or []
             desc = s.get("description")

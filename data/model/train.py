@@ -1,475 +1,440 @@
-"""
-pentest-ai — ML Training Pipeline v2
-=====================================
-Auteur : BN_Cyber02
-Description :
-    Pipeline d'entraînement XGBoost dual-model (classifieur + régresseur)
-    pour le scoring de vulnérabilités CVE.
-
-    Corrections v2 vs v1 :
-    - Target opérationnelle multi-dimensionnelle (non dérivable trivialement depuis les features)
-    - Suppression des features en leakage direct (exploited_x_cvss, epss_x_cvss, percentile_sq)
-    - Validation croisée StratifiedKFold honnête
-    - SMOTE appliqué uniquement à l'intérieur de chaque fold train
-    - Calibration isotonique du classifieur
-    - Métriques complètes : F1-macro, ROC-AUC OvR, RMSE, R², Spearman
-    - Export des courbes ROC et Precision-Recall
-    - Métadonnées sauvegardées avec les modèles (.json)
-"""
-
-import os
-import json
-import warnings
+import warnings; warnings.filterwarnings('ignore')
 import numpy as np
 import pandas as pd
 import joblib
-import matplotlib
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import os
 import xgboost as xgb
-
-from scipy.stats import spearmanr
-from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
+from sklearn.model_selection import train_test_split
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.metrics import (
-    classification_report, f1_score, roc_auc_score,
-    mean_squared_error, r2_score, average_precision_score,
-    RocCurveDisplay, PrecisionRecallDisplay
+    ConfusionMatrixDisplay, classification_report,
+    roc_curve, auc, precision_recall_curve,
+    average_precision_score, mean_squared_error
 )
-from sklearn.preprocessing import label_binarize
+from sklearn.preprocessing import LabelBinarizer
 from sklearn.utils.class_weight import compute_sample_weight
 from imblearn.over_sampling import SMOTE
-from imblearn.pipeline import Pipeline as ImbPipeline
 
-warnings.filterwarnings('ignore')
+os.makedirs('data/model',     exist_ok=True)
+os.makedirs('data/graphiques', exist_ok=True)
 
-# ─────────────────────────────────────────────
-# CONFIG
-# ─────────────────────────────────────────────
-DATASET_PATH  = '/mnt/user-data/uploads/entrainement_dataset.csv'
-OUTPUT_DIR    = '/mnt/user-data/outputs'
-PLOT_DIR      = os.path.join(OUTPUT_DIR, 'plots')
-RANDOM_STATE  = 42
-TEST_SIZE     = 0.20
-N_FOLDS       = 5
-LABEL_NAMES   = ['Low', 'Medium', 'High', 'Critical']
+plt.rcParams.update({
+    'figure.facecolor': '#FFFFFF', 'axes.facecolor': '#F0F0F0',
+    'axes.edgecolor':   '#CCCCCC', 'axes.labelcolor': '#333333',
+    'xtick.color':      '#333333', 'ytick.color':     '#333333',
+    'text.color':       '#333333', 'grid.color':      '#DDDDDD',
+    'grid.alpha': 0.8,  'axes.grid': True,
+    'legend.facecolor': '#F0F0F0', 'legend.edgecolor': '#CCCCCC',
+    'font.family': 'DejaVu Sans'
+})
 
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-os.makedirs(PLOT_DIR, exist_ok=True)
+LABEL_NAMES  = ['Low', 'Medium', 'High', 'Critical']
+RANDOM_STATE = 42
 
-# ─────────────────────────────────────────────
-# 1. CHARGEMENT
-# ─────────────────────────────────────────────
-print("=" * 60)
-print("  pentest-ai — ML Training Pipeline v2")
-print("=" * 60)
-
-df = pd.read_csv(DATASET_PATH)
-print(f"\n[1/6] Dataset chargé : {df.shape[0]:,} CVEs × {df.shape[1]} colonnes")
-print(f"      Colonnes : {df.columns.tolist()}")
-
-# ─────────────────────────────────────────────
-# 2. TARGET OPÉRATIONNELLE MULTI-DIMENSIONNELLE
-# ─────────────────────────────────────────────
-# Objectif : score de priorité opérationnelle qui ne soit PAS
-# une transformation linéaire triviale d'une seule feature.
-# Dimensions intégrées :
-#   - Sévérité intrinsèque (CVSS normalisé)          → 35 %
-#   - Exploitabilité réelle (EPSS + KEV)              → 40 %
-#   - Complexité d'attaque (vecteur réseau, privs)    → 15 %
-#   - Fraîcheur de la vulnérabilité                   → 10 %
+# ════════════════════════════════════════════════════════════════
+# CORRECTION PRINCIPALE — FEATURES PROPRES SANS DATA LEAKAGE
 #
-# Note: cvss_score reste une FEATURE utile au modèle
-# car d'autres dimensions (EPSS, KEV, age) permettent
-# de le combiner de façon non-linéaire.
-
-W_SEV         = 0.35   # sévérité CVSS normalisée [0,1]
-W_EXPLOIT     = 0.40   # exploitabilité réelle
-W_COMPLEXITY  = 0.15   # complexité d'accès (réseau + privs)
-W_FRESHNESS   = 0.10   # fraîcheur
-
-# Composante sévérité : transformation non-linéaire via puissance
-sev_component = (df['cvss_score'] / 10.0) ** 1.5
-
-# Composante exploitabilité : combinaison EPSS + KEV avec saturation
-#   - EPSS seul : faible si CVE non exploitée en pratique
-#   - KEV (is_exploited) : boost multiplicatif fort mais plafonné
-epss_norm      = df['epss'].clip(0, 1)
-kev_boost      = 1.0 + 1.5 * df['is_exploited']          # ×1 ou ×2.5
-exploit_raw    = (epss_norm * kev_boost).clip(0, 1)
-exploit_component = np.tanh(3.0 * exploit_raw)            # saturation douce [0,1]
-
-# Composante complexité : réseau sans authentification = surface maximale
-#   av_num : 1=Physical, 2=Local, 3=Adjacent, 4=Network
-#   ac_num : 1=High, 2=Low  (inversé → facilité)
-#   pr_num : 0=None, 1=Low, 2=High (inversé → facilité)
-av_norm    = (df['av_num'] - 1) / 3.0                     # [0,1]
-ac_ease    = 1.0 - (df['ac_num'] - 1) / 1.0              # AC_Low=1 → ease=1
-pr_ease    = 1.0 - df['pr_num'] / 2.0                     # PR_None=0 → ease=1
-complexity_component = (av_norm * 0.5 + ac_ease * 0.3 + pr_ease * 0.2).clip(0, 1)
-
-# Composante fraîcheur : CVEs récentes sont plus dangereuses
-#   age_cve en mois ; demi-vie = 24 mois
-freshness_component = np.exp(-df['age_cve'] / 24.0)
-
-# Score composite final
-df['ops_risk_score'] = (
-    W_SEV        * sev_component       +
-    W_EXPLOIT    * exploit_component   +
-    W_COMPLEXITY * complexity_component +
-    W_FRESHNESS  * freshness_component
-).round(6).clip(0, 1)
-
-# Labels via quantiles adaptatifs (distribution équilibrée sur classes opérationnelles)
-q25, q60, q88 = df['ops_risk_score'].quantile([0.25, 0.60, 0.88])
-df['ops_risk_label'] = pd.cut(
-    df['ops_risk_score'],
-    bins=[-0.001, q25, q60, q88, 1.0],
-    labels=[0, 1, 2, 3]
-).astype(int)
-
-print(f"\n[2/6] Target opérationnelle construite")
-print(f"      Quantiles : q25={q25:.4f}, q60={q60:.4f}, q88={q88:.4f}")
-print(f"      Distribution labels :")
-vc = df['ops_risk_label'].value_counts().sort_index()
-for i, n in vc.items():
-    print(f"        {LABEL_NAMES[i]:10s} ({i}) : {n:6,}  ({n/len(df)*100:.1f}%)")
-
-# ─────────────────────────────────────────────
-# 3. FEATURE ENGINEERING (sans leakage)
-# ─────────────────────────────────────────────
-
-
-df['epss_log']        = np.log1p(df['epss'])                           # échelle log (distribution longue queue)
-df['network_no_auth'] = ((df['av_num'] == 4) & (df['pr_num'] == 0)).astype(int)  # surface max
-df['age_bucket']      = (df['age_cve'].clip(0, 9999) // 6).clip(0, 8).astype(int) # tranche semestrielle
-df['severity_x_av']   = df['severity_num'] * df['av_num']             # interaction sévérité×vecteur
-df['attack_surface']  = (
-    df['av_num'] * (4 - df['ac_num']) * (4 - df['pr_num'])
-).clip(0, 64) / 64.0                                                   # surface normalisée [0,1]
-df['ui_penalty']      = (df['ui_num'] == 1).astype(int)               # interaction requise → pénalité
-df['epss_kev']        = df['epss'] * (1 + df['is_exploited'])         # EPSS pondéré KEV (différent target)
-df['cvss_sq']         = (df['cvss_score'] / 10.0) ** 2               # non-linéarité sévérité
+# Règle simple : une feature ne doit PAS apparaître dans
+# la fonction assign_pentest_label qui construit les labels.
+#
+# SUPPRIMÉES (utilisées dans assign_pentest_label) :
+#   cvss_score, severity_num, is_exploited, is_public,
+#   host_criticality, port_is_critical, db_exposed,
+#   network_no_auth, public_and_exploit, public_and_network,
+#   public_critical_port, attack_surface
+#
+# GARDÉES (indépendantes des règles de labels) :
+#   epss, epss_log, age_cve, age_bucket,
+#   ac_num, pr_num, ui_num,
+#   host_type, port, svc_type_num, port_is_web
+# ════════════════════════════════════════════════════════════════
 
 FEATURES = [
-    # Métriques de base
-    'cvss_score', 'severity_num',
-    # Vecteurs CVSS v3
-    'av_num', 'ac_num', 'pr_num', 'ui_num',
-    # Exploitabilité
-    'is_exploited', 'epss', 'epss_log', 'epss_kev',
-    # Temporel
-    'age_cve', 'age_bucket',
-    # Features construites
-    'network_no_auth', 'severity_x_av', 'attack_surface',
-    'ui_penalty', 'cvss_sq',
+    'epss',          # Probabilité d'exploitation (source NVD externe)
+    'epss_log',      # Version logarithmique du EPSS
+    'age_cve',       # Ancienneté de la CVE en jours
+    'age_bucket',    # Tranche d'âge de la CVE
+    'ac_num',        # Complexité d'attaque (CVSS vector)
+    'pr_num',        # Privilèges requis (CVSS vector)
+    'ui_num',        # Interaction utilisateur requise (CVSS vector)
+    'host_type',     # Type de machine (serveur, workstation...)
+    'port',          # Numéro de port du service vulnérable
+    'svc_type_num',  # Type de service
+    'port_is_web',   # Le service est-il un port web ?
 ]
 
-print(f"\n[3/6] Feature engineering : {len(FEATURES)} features (sans leakage)")
-print(f"      {FEATURES}")
+# ════════════════════════════════════════════════════════════════
+# ÉTAPE 1 — Chargement
+# ════════════════════════════════════════════════════════════════
+DATASET_PATH = '/content/dataset_corrige.csv'
+df = pd.read_csv(DATASET_PATH)
+print(f"Dataset chargé : {len(df):,} lignes × {len(df.columns)} colonnes")
 
-# ─────────────────────────────────────────────
-# 4. SPLIT TRAIN / TEST
-# ─────────────────────────────────────────────
-X       = df[FEATURES]
-y_reg   = df['ops_risk_score']
-y_clf   = df['ops_risk_label']
+# ════════════════════════════════════════════════════════════════
+# ÉTAPE 2 — Construction des labels (inchangée)
+# ════════════════════════════════════════════════════════════════
+print("\nConstruction des labels métier...")
+np.random.seed(RANDOM_STATE)
 
-X_train, X_test, yr_train, yr_test, yc_train, yc_test = train_test_split(
-    X, y_reg, y_clf,
-    test_size=TEST_SIZE,
-    random_state=RANDOM_STATE,
-    stratify=y_clf
+def assign_pentest_label(row):
+    score   = row['cvss_score']
+    epss    = row['epss_kev']
+    exploit = row['is_exploited']
+    public  = row['is_public']
+    crit    = row['host_criticality']
+    pcrit   = row['port_is_critical']
+    dbe     = row['db_exposed']
+    pexp    = row['public_and_exploit']
+    nav     = row['network_no_auth']
+    av      = row['av_num']
+
+    if exploit == 1 and public == 1 and score >= 7.0:  return 3
+    if pexp == 1 and score >= 8.0:                      return 3
+    if epss >= 0.15 and av == 4 and score >= 7.5:       return 3
+    if dbe == 1 and nav == 1 and score >= 8.0:          return 3
+    if crit == 4 and score >= 9.0:                      return 3
+    if score >= 8.5 and public == 1:                    return 2
+    if score >= 7.5 and (pcrit == 1 or dbe == 1):       return 2
+    if epss >= 0.05 and av == 4:                        return 2
+    if exploit == 1 and score >= 6.0:                   return 2
+    if crit >= 3 and score >= 7.0 and public == 1:      return 2
+    if score >= 6.0 and av == 4:                        return 1
+    if score >= 5.0 and public == 1:                    return 1
+    if score >= 7.0 and crit >= 2:                      return 1
+    if epss >= 0.01 and score >= 5.0:                   return 1
+    return 0
+
+print("  Application des règles (peut prendre 30-60s)...")
+df['pentest_label'] = df.apply(assign_pentest_label, axis=1)
+
+label_counts = df['pentest_label'].value_counts().sort_index()
+print(f"\n  Distribution des labels :")
+for lbl, name in enumerate(LABEL_NAMES):
+    n = label_counts.get(lbl, 0)
+    print(f"    {name:8s} ({lbl}) : {n:6,}  ({100*n/len(df):.1f}%)")
+
+# ════════════════════════════════════════════════════════════════
+# ÉTAPE 3 — Target régression (cvss_score — inchangée)
+# ════════════════════════════════════════════════════════════════
+print(f"\nTarget régression : cvss_score")
+print(f"  Min: {df['cvss_score'].min():.1f} | Max: {df['cvss_score'].max():.1f} | "
+      f"Mean: {df['cvss_score'].mean():.2f}")
+
+# ════════════════════════════════════════════════════════════════
+# ÉTAPE 4 — Split 70 / 15 / 15
+# ════════════════════════════════════════════════════════════════
+X     = df[FEATURES]
+y_clf = df['pentest_label']
+y_reg = df['cvss_score']
+
+X_tmp, X_test, yc_tmp, yc_test, yr_tmp, yr_test = train_test_split(
+    X, y_clf, y_reg,
+    test_size=0.15, random_state=RANDOM_STATE, stratify=y_clf
 )
-
-print(f"\n[4/6] Split : train={len(X_train):,} | test={len(X_test):,}")
-
-# ─────────────────────────────────────────────
-# 5. VALIDATION CROISÉE STRATIFIÉE (honnête)
-# ─────────────────────────────────────────────
-print(f"\n[5/6] Validation croisée {N_FOLDS}-Fold en cours...")
-
-skf = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=RANDOM_STATE)
-
-cv_f1_scores   = []
-cv_auc_scores  = []
-cv_rmse_scores = []
-
-for fold, (tr_idx, val_idx) in enumerate(skf.split(X_train, yc_train)):
-    X_tr, X_val     = X_train.iloc[tr_idx], X_train.iloc[val_idx]
-    yc_tr, yc_val   = yc_train.iloc[tr_idx], yc_train.iloc[val_idx]
-    yr_tr, yr_val   = yr_train.iloc[tr_idx], yr_train.iloc[val_idx]
-
-    # SMOTE uniquement sur le fold train (pas de leakage inter-fold)
-    n_med = yc_tr.value_counts().get(1, 100)
-    smote_strategy = {
-        0: yc_tr.value_counts()[0],
-        1: n_med,
-        2: min(n_med, yc_tr.value_counts().get(2, 0) * 4),
-        3: min(n_med, yc_tr.value_counts().get(3, 0) * 8),
-    }
-    smote = SMOTE(sampling_strategy=smote_strategy, k_neighbors=5, random_state=RANDOM_STATE)
-    X_tr_sm, yc_tr_sm = smote.fit_resample(X_tr, yc_tr)
-
-    # Classifieur fold
-    clf_fold = xgb.XGBClassifier(
-        n_estimators=400, max_depth=5, learning_rate=0.05,
-        objective='multi:softprob', num_class=4,
-        eval_metric='mlogloss', subsample=0.8, colsample_bytree=0.8,
-        min_child_weight=5, random_state=RANDOM_STATE, n_jobs=-1, verbosity=0,
-        use_label_encoder=False
-    )
-    sw = compute_sample_weight('balanced', y=yc_tr_sm)
-    clf_fold.fit(X_tr_sm, yc_tr_sm, sample_weight=sw)
-
-    yc_pred_val  = clf_fold.predict(X_val)
-    yc_proba_val = clf_fold.predict_proba(X_val)
-    f1   = f1_score(yc_val, yc_pred_val, average='macro', zero_division=0)
-    y_bin = label_binarize(yc_val, classes=[0, 1, 2, 3])
-    auc  = roc_auc_score(y_bin, yc_proba_val, multi_class='ovr', average='macro')
-
-    # Régresseur fold
-    reg_fold = xgb.XGBRegressor(
-        n_estimators=400, max_depth=5, learning_rate=0.05,
-        objective='reg:squarederror', subsample=0.8, colsample_bytree=0.8,
-        min_child_weight=5, random_state=RANDOM_STATE, n_jobs=-1, verbosity=0
-    )
-    reg_fold.fit(X_tr, yr_tr)
-    yr_pred_val = reg_fold.predict(X_val)
-    rmse = np.sqrt(mean_squared_error(yr_val, yr_pred_val))
-
-    cv_f1_scores.append(f1)
-    cv_auc_scores.append(auc)
-    cv_rmse_scores.append(rmse)
-    print(f"      Fold {fold+1}/{N_FOLDS} → F1-macro={f1:.4f} | AUC-OvR={auc:.4f} | RMSE={rmse:.6f}")
-
-print(f"\n      ── Résumé Cross-Validation ──")
-print(f"      F1-macro  : {np.mean(cv_f1_scores):.4f} ± {np.std(cv_f1_scores):.4f}")
-print(f"      AUC-OvR   : {np.mean(cv_auc_scores):.4f} ± {np.std(cv_auc_scores):.4f}")
-print(f"      RMSE      : {np.mean(cv_rmse_scores):.6f} ± {np.std(cv_rmse_scores):.6f}")
-
-# ─────────────────────────────────────────────
-# 6. ENTRAÎNEMENT FINAL SUR TOUT LE TRAIN SET
-# ─────────────────────────────────────────────
-print(f"\n[6/6] Entraînement final...")
-
-# SMOTE sur tout le train
-n_med = yc_train.value_counts().get(1, 100)
-smote_final = SMOTE(
-    sampling_strategy={
-        0: yc_train.value_counts()[0],
-        1: n_med,
-        2: min(n_med, yc_train.value_counts().get(2, 0) * 4),
-        3: min(n_med, yc_train.value_counts().get(3, 0) * 8),
-    },
-    k_neighbors=5, random_state=RANDOM_STATE
+X_train, X_val, yc_train, yc_val, yr_train, yr_val = train_test_split(
+    X_tmp, yc_tmp, yr_tmp,
+    test_size=0.176, random_state=RANDOM_STATE, stratify=yc_tmp
 )
-X_train_sm, yc_train_sm = smote_final.fit_resample(X_train, yc_train)
-sw_final = compute_sample_weight('balanced', y=yc_train_sm)
-print(f"      Après SMOTE : {len(X_train_sm):,} échantillons train")
+print(f"\nSplit — Train: {len(X_train):,} | Val: {len(X_val):,} | Test: {len(X_test):,}")
 
-# ── Classifieur XGBoost ──
-clf_base = xgb.XGBClassifier(
-    n_estimators=600, max_depth=5, learning_rate=0.03,
-    objective='multi:softprob', num_class=4,
-    eval_metric='mlogloss', subsample=0.8, colsample_bytree=0.8,
-    min_child_weight=5, random_state=RANDOM_STATE, n_jobs=-1, verbosity=0,
-    use_label_encoder=False, early_stopping_rounds=50
-)
-clf_base.fit(
-    X_train_sm, yc_train_sm,
-    sample_weight=sw_final,
-    eval_set=[(X_test, yc_test)],
-    verbose=False
-)
+# ════════════════════════════════════════════════════════════════
+# ÉTAPE 5 — SMOTE sur train uniquement
+# ════════════════════════════════════════════════════════════════
+n_per_class = {lbl: yc_train.value_counts().get(lbl, 0) for lbl in range(4)}
+print(f"\nDistribution train avant SMOTE: {dict(sorted(n_per_class.items()))}")
 
-# Calibration isotonique via cross-validation interne (cv=3)
-# Probabilités mieux calibrées pour le scoring downstream
-clf_calibrated = CalibratedClassifierCV(
-    xgb.XGBClassifier(
-        n_estimators=clf_base.best_iteration or 600,
-        max_depth=5, learning_rate=0.03,
-        objective='multi:softprob', num_class=4,
-        eval_metric='mlogloss', subsample=0.8, colsample_bytree=0.8,
-        min_child_weight=5, random_state=RANDOM_STATE, n_jobs=-1, verbosity=0,
-        use_label_encoder=False
-    ),
-    method='isotonic', cv=3
-)
-clf_calibrated.fit(X_train_sm, yc_train_sm)
-
-# ── Régresseur XGBoost ──
-reg_final = xgb.XGBRegressor(
-    n_estimators=600, max_depth=5, learning_rate=0.03,
-    objective='reg:squarederror', subsample=0.8, colsample_bytree=0.8,
-    min_child_weight=5, random_state=RANDOM_STATE, n_jobs=-1, verbosity=0,
-    early_stopping_rounds=50
-)
-reg_final.fit(
-    X_train, yr_train,
-    eval_set=[(X_test, yr_test)],
-    verbose=False
-)
-
-# ─────────────────────────────────────────────
-# ÉVALUATION SUR TEST SET
-# ─────────────────────────────────────────────
-print("\n" + "=" * 60)
-print("  MÉTRIQUES TEST SET (données jamais vues)")
-print("=" * 60)
-
-# -- Classifieur --
-yc_pred      = clf_calibrated.predict(X_test)
-yc_proba     = clf_calibrated.predict_proba(X_test)
-yc_test_bin  = label_binarize(yc_test, classes=[0, 1, 2, 3])
-
-f1_macro     = f1_score(yc_test, yc_pred, average='macro', zero_division=0)
-f1_weighted  = f1_score(yc_test, yc_pred, average='weighted', zero_division=0)
-auc_ovr      = roc_auc_score(yc_test_bin, yc_proba, multi_class='ovr', average='macro')
-ap_macro     = average_precision_score(yc_test_bin, yc_proba, average='macro')
-
-print(f"\n── Classifieur (4 classes) ──")
-print(classification_report(yc_test, yc_pred, target_names=LABEL_NAMES, zero_division=0))
-print(f"  F1-macro          : {f1_macro:.4f}")
-print(f"  F1-weighted       : {f1_weighted:.4f}")
-print(f"  ROC-AUC OvR macro : {auc_ovr:.4f}")
-print(f"  Avg Precision     : {ap_macro:.4f}")
-
-# -- Régresseur --
-yr_pred   = reg_final.predict(X_test)
-rmse      = np.sqrt(mean_squared_error(yr_test, yr_pred))
-mae       = np.mean(np.abs(yr_test - yr_pred))
-r2        = r2_score(yr_test, yr_pred)
-spearman  = spearmanr(yr_test, yr_pred).statistic
-
-print(f"\n── Régresseur (score continu) ──")
-print(f"  RMSE              : {rmse:.6f}")
-print(f"  MAE               : {mae:.6f}")
-print(f"  R²                : {r2:.4f}")
-print(f"  Spearman ρ        : {spearman:.4f}")
-
-# ─────────────────────────────────────────────
-# COURBES ROC ET PRECISION-RECALL
-# ─────────────────────────────────────────────
-COLORS = ['#27ae60', '#f39c12', '#e67e22', '#e74c3c']
-
-fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-fig.suptitle('pentest-ai — Évaluation ML (test set)', fontsize=14, fontweight='bold')
-
-# ROC curves
-ax = axes[0]
-for i, (label, color) in enumerate(zip(LABEL_NAMES, COLORS)):
-    RocCurveDisplay.from_predictions(
-        yc_test_bin[:, i], yc_proba[:, i],
-        name=label, color=color, ax=ax
-    )
-ax.plot([0, 1], [0, 1], 'k--', linewidth=0.8, label='Random')
-ax.set_title(f'Courbes ROC — AUC macro={auc_ovr:.3f}')
-ax.set_xlabel('Taux Faux Positifs')
-ax.set_ylabel('Taux Vrais Positifs')
-ax.legend(loc='lower right', fontsize=9)
-ax.grid(alpha=0.3)
-
-# Precision-Recall curves
-ax = axes[1]
-for i, (label, color) in enumerate(zip(LABEL_NAMES, COLORS)):
-    PrecisionRecallDisplay.from_predictions(
-        yc_test_bin[:, i], yc_proba[:, i],
-        name=label, color=color, ax=ax
-    )
-ax.set_title(f'Courbes Precision-Recall — AP macro={ap_macro:.3f}')
-ax.set_xlabel('Rappel')
-ax.set_ylabel('Précision')
-ax.legend(loc='upper right', fontsize=9)
-ax.grid(alpha=0.3)
-
-plt.tight_layout()
-roc_path = os.path.join(PLOT_DIR, 'roc_pr_curves.png')
-plt.savefig(roc_path, dpi=150, bbox_inches='tight')
-plt.close()
-print(f"\n  Courbes ROC/PR sauvegardées → {roc_path}")
-
-# Feature importance
-fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-fig.suptitle('pentest-ai — Feature Importances XGBoost', fontsize=14, fontweight='bold')
-
-for ax, model, title in zip(axes, [clf_base, reg_final], ['Classifieur', 'Régresseur']):
-    fi = pd.Series(model.feature_importances_, index=FEATURES).sort_values()
-    colors = ['#e74c3c' if v > fi.quantile(0.75) else '#3498db' for v in fi]
-    fi.plot(kind='barh', ax=ax, color=colors)
-    ax.set_title(f'Feature Importances — {title}')
-    ax.set_xlabel('Importance (gain)')
-    ax.grid(axis='x', alpha=0.3)
-
-plt.tight_layout()
-fi_path = os.path.join(PLOT_DIR, 'feature_importances.png')
-plt.savefig(fi_path, dpi=150, bbox_inches='tight')
-plt.close()
-print(f"  Feature importances sauvegardées → {fi_path}")
-
-# ─────────────────────────────────────────────
-# SAUVEGARDE MODÈLES + MÉTADONNÉES
-# ─────────────────────────────────────────────
-clf_path = os.path.join(OUTPUT_DIR, 'xgb_classifier_v2.joblib')
-reg_path = os.path.join(OUTPUT_DIR, 'xgb_regressor_v2.joblib')
-joblib.dump(clf_calibrated, clf_path)
-joblib.dump(reg_final, reg_path)
-
-metadata = {
-    "version": "2.0",
-    "project": "pentest-ai",
-    "features": FEATURES,
-    "n_features": len(FEATURES),
-    "label_names": LABEL_NAMES,
-    "target": {
-        "classifier": "ops_risk_label (4 classes)",
-        "regressor": "ops_risk_score [0, 1]",
-        "score_weights": {
-            "severity": W_SEV,
-            "exploitability": W_EXPLOIT,
-            "complexity": W_COMPLEXITY,
-            "freshness": W_FRESHNESS,
-        },
-        "label_quantiles": {"q25": round(q25, 6), "q60": round(q60, 6), "q88": round(q88, 6)}
-    },
-    "training": {
-        "dataset_size": len(df),
-        "train_size": len(X_train),
-        "test_size": len(X_test),
-        "smote": True,
-        "calibration": "isotonic",
-        "cv_folds": N_FOLDS,
-    },
-    "metrics": {
-        "cv": {
-            "f1_macro_mean": round(float(np.mean(cv_f1_scores)), 4),
-            "f1_macro_std":  round(float(np.std(cv_f1_scores)),  4),
-            "auc_ovr_mean":  round(float(np.mean(cv_auc_scores)), 4),
-            "auc_ovr_std":   round(float(np.std(cv_auc_scores)),  4),
-            "rmse_mean":     round(float(np.mean(cv_rmse_scores)), 6),
-            "rmse_std":      round(float(np.std(cv_rmse_scores)),  6),
-        },
-        "test": {
-            "f1_macro":    round(float(f1_macro),    4),
-            "f1_weighted": round(float(f1_weighted), 4),
-            "auc_ovr":     round(float(auc_ovr),     4),
-            "avg_precision": round(float(ap_macro),  4),
-            "rmse":        round(float(rmse),        6),
-            "mae":         round(float(mae),         6),
-            "r2":          round(float(r2),          4),
-            "spearman":    round(float(spearman),    4),
-        }
-    }
+minority_threshold = max(n_per_class.values()) * 0.5
+smote_strat = {
+    lbl: max(n, int(minority_threshold))
+    for lbl, n in n_per_class.items()
+    if n < minority_threshold
 }
 
-meta_path = os.path.join(OUTPUT_DIR, 'model_metadata_v2.json')
-with open(meta_path, 'w', encoding='utf-8') as f:
-    json.dump(metadata, f, indent=2, ensure_ascii=False)
+if smote_strat:
+    sm = SMOTE(sampling_strategy=smote_strat, k_neighbors=5, random_state=RANDOM_STATE)
+    X_sm, yc_sm = sm.fit_resample(X_train, yc_train)
+else:
+    X_sm, yc_sm = X_train.copy(), yc_train.copy()
 
-print(f"\n  Classifieur  → {clf_path}")
-print(f"  Régresseur   → {reg_path}")
-print(f"  Métadonnées  → {meta_path}")
+sw = compute_sample_weight('balanced', y=yc_sm)
+print(f"Après SMOTE — Train: {len(X_sm):,} échantillons")
 
-print("\n" + "=" * 60)
-print("  Entraînement terminé avec succès.")
-print("=" * 60)
+# ════════════════════════════════════════════════════════════════
+# ÉTAPE 6 — Classificateur XGBoost (inchangé)
+# ════════════════════════════════════════════════════════════════
+print("\nEntraînement du classificateur XGBoost...")
+n_classes = len(df['pentest_label'].unique())
+
+clf_base = xgb.XGBClassifier(
+    n_estimators=500, max_depth=6, learning_rate=0.02,   # 1000 → 500
+    objective='multi:softprob', num_class=n_classes,
+    eval_metric='mlogloss',
+    subsample=0.8, colsample_bytree=0.8,
+    min_child_weight=5, gamma=0.1,
+    reg_alpha=0.1, reg_lambda=1.5,
+    random_state=RANDOM_STATE, n_jobs=-1, verbosity=0,
+    early_stopping_rounds=30                              # 50 → 30
+)
+clf_base.fit(
+    X_sm, yc_sm,
+    sample_weight=sw,
+    eval_set=[(X_sm, yc_sm), (X_val, yc_val)],
+    verbose=False
+)
+best_iter = clf_base.best_iteration + 1
+ml_best   = clf_base.evals_result()['validation_1']['mlogloss'][clf_base.best_iteration]
+print(f"  Meilleure itération : {best_iter}")
+print(f"  MLogLoss val (best) : {ml_best:.4f}")
+
+print("  Calibration sur val set...")
+clf_calibrated = CalibratedClassifierCV(
+    xgb.XGBClassifier(
+        n_estimators=best_iter, max_depth=6, learning_rate=0.02,
+        objective='multi:softprob', num_class=n_classes,
+        subsample=0.8, colsample_bytree=0.8,
+        min_child_weight=5, gamma=0.1,
+        reg_alpha=0.1, reg_lambda=1.5,
+        random_state=RANDOM_STATE, n_jobs=-1, verbosity=0
+    ),
+    cv=3, method='isotonic'
+)
+clf_calibrated.fit(X_val, yc_val)
+clf_calibrated.feature_names_in_ = np.array(FEATURES)
+
+# ════════════════════════════════════════════════════════════════
+# ÉTAPE 7 — Régresseur XGBoost (cvss_score)
+# ════════════════════════════════════════════════════════════════
+print("\nEntraînement du régresseur XGBoost...")
+
+REG_FEATURES = [f for f in FEATURES if f not in
+                ['cvss_score', 'severity_num', 'cvss_sq', 'severity_x_av',
+                 'host_x_cvss', 'attack_surface']]
+print(f"  Features régresseur : {len(REG_FEATURES)}")
+
+reg = xgb.XGBRegressor(
+    n_estimators=500, max_depth=5, learning_rate=0.02,   # 1000 → 500
+    objective='reg:squarederror',
+    subsample=0.8, colsample_bytree=0.8,
+    min_child_weight=5, gamma=0.1,
+    reg_alpha=0.1, reg_lambda=1.5,
+    random_state=RANDOM_STATE, n_jobs=-1, verbosity=0,
+    early_stopping_rounds=30                              # 50 → 30
+)
+reg.fit(
+    X_train[REG_FEATURES], yr_train,
+    eval_set=[(X_train[REG_FEATURES], yr_train),
+              (X_val[REG_FEATURES], yr_val)],
+    verbose=False
+)
+rm_best = reg.evals_result()['validation_1']['rmse'][reg.best_iteration]
+print(f"  Meilleure itération : {reg.best_iteration + 1}")
+print(f"  RMSE val (best)     : {rm_best:.4f}")
+
+# ════════════════════════════════════════════════════════════════
+# ÉTAPE 8 — Évaluation sur test set
+# ════════════════════════════════════════════════════════════════
+yc_pred = clf_calibrated.predict(X_test)
+y_prob  = clf_calibrated.predict_proba(X_test)
+yr_pred = reg.predict(X_test[REG_FEATURES])
+yr_test_vals = yr_test.values
+
+rmse = np.sqrt(mean_squared_error(yr_test_vals, yr_pred))
+mae  = np.mean(np.abs(yr_test_vals - yr_pred))
+
+print(f"\n═══════════════════════════════════════════════════════════")
+print(f"  Classificateur")
+print(f"  MLogLoss (val best)  : {ml_best:.4f}")
+print(f"  Accuracy (test)      : {(yc_pred == yc_test.values).mean():.4f}")
+print(f"\n  Régresseur (cvss_score)")
+print(f"  RMSE (test)          : {rmse:.4f}")
+print(f"  MAE  (test)          : {mae:.4f}")
+print(f"═══════════════════════════════════════════════════════════")
+print(classification_report(yc_test, yc_pred, target_names=LABEL_NAMES))
+
+# MAP@K et NDCG@K
+def map_at_k(y_true, y_scores, k, relevant_class=3):
+    order   = np.argsort(y_scores)[::-1][:k]
+    hits    = (y_true[order] == relevant_class).astype(int)
+    n_rel   = (y_true == relevant_class).sum()
+    if n_rel == 0: return 0.0
+    ap, n_hits = 0.0, 0
+    for i, h in enumerate(hits):
+        if h:
+            n_hits += 1
+            ap += n_hits / (i + 1)
+    return ap / min(n_rel, k)
+
+def ndcg_at_k(y_true, y_scores, k, relevant_class=3):
+    order  = np.argsort(y_scores)[::-1][:k]
+    gains  = (y_true[order] == relevant_class).astype(float)
+    dcg    = np.sum(gains / np.log2(np.arange(2, k + 2)))
+    ideal  = np.sort((y_true == relevant_class).astype(float))[::-1][:k]
+    idcg   = np.sum(ideal / np.log2(np.arange(2, k + 2)))
+    return dcg / idcg if idcg > 0 else 0.0
+
+yc_test_arr = yc_test.values
+rank_score  = y_prob[:, 3]
+
+k_values = [5, 10, 15, 20, 30, 50]
+maps  = [map_at_k(yc_test_arr, rank_score, k=k)  for k in k_values]
+ndcgs = [ndcg_at_k(yc_test_arr, rank_score, k=k) for k in k_values]
+
+print("\n  Métriques de ranking :")
+print(f"  {'K':>4}  {'MAP@K':>8}  {'NDCG@K':>8}")
+for k, m, n in zip(k_values, maps, ndcgs):
+    print(f"  {k:>4}  {m:>8.4f}  {n:>8.4f}")
+
+# ════════════════════════════════════════════════════════════════
+# ÉTAPE 9 — Graphiques (identiques à avant)
+# ════════════════════════════════════════════════════════════════
+
+# 1. Distribution labels
+fig, ax = plt.subplots(figsize=(10, 5))
+colors_bar = ['#2ecc71','#f1c40f','#e67e22','#e74c3c']
+counts = [label_counts.get(i,0) for i in range(4)]
+bars = ax.bar(LABEL_NAMES, counts, color=colors_bar, edgecolor='white', linewidth=1.5)
+for bar, cnt in zip(bars, counts):
+    ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 800,
+            f'{100*cnt/len(df):.1f}%', ha='center', fontsize=11, fontweight='bold')
+ax.set_title('Distribution des labels pentest (règles métier)', fontsize=13)
+ax.set_ylabel('Nombre de vulnérabilités')
+plt.tight_layout()
+plt.savefig('data/graphiques/label_distribution.png', bbox_inches='tight', dpi=300)
+plt.show()
+
+# 2. Matrice de confusion
+plt.figure(figsize=(8, 6))
+ConfusionMatrixDisplay.from_predictions(
+    yc_test, yc_pred, display_labels=LABEL_NAMES, cmap='Blues')
+plt.title('Matrice de confusion (Test Set)')
+plt.savefig('data/graphiques/confusion_matrix.png', bbox_inches='tight', dpi=300)
+plt.show()
+
+# 3. Courbes d'apprentissage
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 6))
+ml_tr = clf_base.evals_result()['validation_0']['mlogloss']
+ml_va = clf_base.evals_result()['validation_1']['mlogloss']
+ax1.plot(ml_tr, label='Train', alpha=0.8, color='steelblue')
+ax1.plot(ml_va, label='Val',   alpha=0.8, color='coral')
+ax1.axvline(clf_base.best_iteration, color='red', linestyle='--',
+            alpha=0.7, label=f'Best iter={best_iter}')
+ax1.set_title('Classifieur — MLogLoss')
+ax1.set_xlabel('Itération'); ax1.set_ylabel('MLogLoss'); ax1.legend()
+
+rm_tr = reg.evals_result()['validation_0']['rmse']
+rm_va = reg.evals_result()['validation_1']['rmse']
+ax2.plot(rm_tr, label='Train', alpha=0.8, color='steelblue')
+ax2.plot(rm_va, label='Val',   alpha=0.8, color='coral')
+ax2.axvline(reg.best_iteration, color='red', linestyle='--',
+            alpha=0.7, label=f'Best iter={reg.best_iteration+1}')
+ax2.set_title('Régresseur — RMSE')
+ax2.set_xlabel('Itération'); ax2.set_ylabel('RMSE'); ax2.legend()
+plt.suptitle("Courbes d'apprentissage", fontsize=14)
+plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+plt.savefig('data/graphiques/training_curves.png', bbox_inches='tight', dpi=300)
+plt.show()
+
+# 4. Métriques par classe
+report = classification_report(yc_test, yc_pred, target_names=LABEL_NAMES, output_dict=True)
+df_rep = pd.DataFrame(report).transpose().drop(columns=['support'])
+fig, ax = plt.subplots(figsize=(11, 6))
+df_rep[['precision','recall','f1-score']].plot(
+    kind='bar', ax=ax, color=['#3498db','#e67e22','#2ecc71'], edgecolor='white')
+ax.set_title('Métriques par classe (Test Set)')
+ax.set_ylabel('Score'); ax.set_ylim(0, 1.1)
+ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
+plt.tight_layout()
+plt.savefig('data/graphiques/metrics_by_class.png', bbox_inches='tight', dpi=300)
+plt.show()
+
+# 5. ROC et PR
+lb = LabelBinarizer()
+y_test_bin = lb.fit_transform(yc_test)
+colors_roc = ['#3498db','#f1c40f','#e67e22','#e74c3c']
+fig, (ax_roc, ax_pr) = plt.subplots(1, 2, figsize=(18, 6))
+for i, (name, col) in enumerate(zip(LABEL_NAMES, colors_roc)):
+    fpr, tpr, _ = roc_curve(y_test_bin[:, i], y_prob[:, i])
+    ax_roc.plot(fpr, tpr, label=f'{name} (AUC={auc(fpr,tpr):.3f})', color=col)
+    prec, rec, _ = precision_recall_curve(y_test_bin[:, i], y_prob[:, i])
+    ap = average_precision_score(y_test_bin[:, i], y_prob[:, i])
+    ax_pr.plot(rec, prec, label=f'{name} (AP={ap:.3f})', color=col)
+ax_roc.plot([0,1],[0,1],'k--', alpha=0.4, label='Aléatoire')
+ax_roc.set_title('Courbes ROC'); ax_roc.legend(loc='lower right')
+ax_pr.set_title('Précision-Rappel'); ax_pr.legend(loc='upper right')
+plt.suptitle('ROC & Précision-Rappel (Test Set)', fontsize=14)
+plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+plt.savefig('data/graphiques/roc_pr_curves.png', bbox_inches='tight', dpi=300)
+plt.show()
+
+# 6. Feature importance
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 8))
+xgb.plot_importance(clf_base, max_num_features=15, importance_type='gain', ax=ax1)
+ax1.set_title('Importance — Classifieur (gain)')
+xgb.plot_importance(reg, max_num_features=15, importance_type='gain', ax=ax2)
+ax2.set_title('Importance — Régresseur (gain)')
+plt.suptitle('Importance des Caractéristiques', fontsize=14)
+plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+plt.savefig('data/graphiques/feature_importances.png', bbox_inches='tight', dpi=300)
+plt.show()
+
+# 7. Régresseur réel vs prédit
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 6))
+ax1.hist(yr_pred,      bins=50, alpha=0.7, label='Prédictions', color='steelblue')
+ax1.hist(yr_test_vals, bins=50, alpha=0.7, label='Réel',        color='coral')
+ax1.legend(); ax1.set_title('CVSS Score — Réel vs Prédit')
+idx = np.random.choice(len(yr_test_vals), min(5000, len(yr_test_vals)), replace=False)
+ax2.scatter(yr_test_vals[idx], yr_pred[idx], alpha=0.15, s=5, color='steelblue')
+ax2.plot([0,10],[0,10], 'r--', lw=2, label='Parfait')
+ax2.set_title(f'CVSS Réel vs Prédit — RMSE={rmse:.3f}')
+ax2.legend()
+plt.suptitle('Analyse du Régresseur', fontsize=14)
+plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+plt.savefig('data/graphiques/regressor_analysis.png', bbox_inches='tight', dpi=300)
+plt.show()
+
+# 8. MAP@K et NDCG@K
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.plot(k_values, maps,  marker='o', label='MAP@K',  color='steelblue', linewidth=2)
+ax.plot(k_values, ndcgs, marker='s', label='NDCG@K', color='coral',     linewidth=2)
+for k, m, n in zip(k_values, maps, ndcgs):
+    ax.annotate(f'{m:.2f}', (k, m), textcoords='offset points',
+                xytext=(0,8), ha='center', fontsize=9, color='steelblue')
+    ax.annotate(f'{n:.2f}', (k, n), textcoords='offset points',
+                xytext=(0,-14), ha='center', fontsize=9, color='coral')
+ax.set_title('MAP@K & NDCG@K — Qualité du Ranking')
+ax.set_xlabel('K'); ax.set_ylabel('Score'); ax.set_ylim(0, 1.1)
+ax.legend(); ax.grid(True)
+plt.tight_layout()
+plt.savefig('data/graphiques/ranking_metrics.png', bbox_inches='tight', dpi=300)
+plt.show()
+
+# ════════════════════════════════════════════════════════════════
+# RÉSUMÉ FINAL
+# ════════════════════════════════════════════════════════════════
+print("\n╔══════════════════════════════════════════════════════════╗")
+print("║              RÉSUMÉ FINAL — TEST SET                    ║")
+print("╠══════════════════════════════════════════════════════════╣")
+print(f"║  CLASSIFICATEUR                                         ║")
+print(f"║    MLogLoss (val best) : {ml_best:.4f}                        ║")
+print(f"║    Accuracy            : {(yc_pred==yc_test.values).mean():.4f}                        ║")
+print(f"║    F1 macro            : {pd.DataFrame(report)['macro avg']['f1-score']:.4f}                        ║")
+print("╠══════════════════════════════════════════════════════════╣")
+print(f"║  RÉGRESSEUR (cvss_score)                                ║")
+print(f"║    RMSE                : {rmse:.4f}                        ║")
+print(f"║    MAE                 : {mae:.4f}                        ║")
+print("╠══════════════════════════════════════════════════════════╣")
+print(f"║  RANKING                                                ║")
+print(f"║    MAP@10              : {maps[1]:.4f}                        ║")
+print(f"║    NDCG@10             : {ndcgs[1]:.4f}                        ║")
+print(f"║    MAP@20              : {maps[3]:.4f}                        ║")
+print(f"║    NDCG@20             : {ndcgs[3]:.4f}                        ║")
+print("╚══════════════════════════════════════════════════════════╝")
+
+# Sauvegarde
+joblib.dump(clf_calibrated, 'data/model/classificateur_xgb.joblib')
+joblib.dump(reg,            'data/model/regresseur_xgb.joblib')
+joblib.dump(np.array(REG_FEATURES), 'data/model/reg_features.joblib')
+
+print("\n✅ Modèles sauvegardés dans data/model/")
+print("✅ Graphiques dans data/graphiques/")

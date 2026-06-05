@@ -100,8 +100,8 @@ def predict_and_store(session: Session, df: pd.DataFrame) -> dict[str, int]:
             label_str = LABEL_MAP.get(label_num, "Moyenne")
             confidence = float(np.max(clf_probas[idx]))
             
-            # On multiplie par 10 pour l'affichage (0-1 -> 0-10)
-            display_score = round(score_v4 * 10, 2)
+            # Le nouveau modèle prédit directement un score sur 10 (cvss_score)
+            display_score = round(score_v4, 1)
             
             vuln_id = int(row["vuln_id"])
             s_ml = session.query(ScoreML).filter(ScoreML.vuln_id == vuln_id).first()

@@ -1,20 +1,8 @@
 """
 Feature Engineering & Data Alignment.
-Version 6 - Alignée sur les modèles classificateur_xgb.joblib / regresseur_xgb.joblib.
+Version 7 - Alignée sur les nouveaux modèles classificateur_xgb.joblib / regresseur_xgb.joblib.
 
-Les 31 features exactes ont été extraites du message d'erreur XGBoost
-(feature_names mismatch) lors du chargement des modèles.
-
-Features CVE (17) :
-    cvss_score, severity_num, av_num, ac_num, pr_num, ui_num,
-    cvss_sq, severity_x_av, attack_surface, network_no_auth, ui_penalty,
-    is_exploited, epss, epss_log, epss_kev, age_cve, age_bucket
-
-Features Hôte/Port (14) :
-    port, svc_type_num, is_public, host_type, host_criticality,
-    port_is_highrisk, port_is_critical, port_is_db, port_is_web,
-    public_and_network, public_and_exploit, public_critical_port,
-    db_exposed, host_x_cvss
+Les modèles réentraînés utilisent désormais 11 features sans data leakage.
 """
 import logging
 
@@ -79,48 +67,31 @@ def classify_service(port: int, service_name: str = "") -> int:
 #  Ordre STRICT des features — extrait du booster XGBoost (feature_names)
 # ─────────────────────────────────────────────────────────────────────────────
 FEATURE_COLS = [
-    # CVE / CVSS
-    'cvss_score', 'severity_num', 'av_num', 'ac_num', 'pr_num', 'ui_num',
-    # Features CVE construites
-    'cvss_sq', 'severity_x_av', 'attack_surface', 'network_no_auth', 'ui_penalty',
-    # Exploitabilité
-    'is_exploited', 'epss', 'epss_log', 'epss_kev',
-    # Temporel
-    'age_cve', 'age_bucket',
-    # Hôte / Port
-    'port', 'svc_type_num', 'is_public', 'host_type', 'host_criticality',
-    # Flags port
-    'port_is_highrisk', 'port_is_critical', 'port_is_db', 'port_is_web',
-    # Features croisées hôte × CVE
-    'public_and_network', 'public_and_exploit', 'public_critical_port',
-    'db_exposed', 'host_x_cvss',
+    'epss',
+    'epss_log',
+    'age_cve',
+    'age_bucket',
+    'ac_num',
+    'pr_num',
+    'ui_num',
+    'host_type',
+    'port',
+    'svc_type_num',
+    'port_is_web',
 ]
 
 # Colonnes brutes minimales attendues dans le DataFrame en entrée
 RAW_COLS_NEEDED = [
-    'cvss_score', 'severity_num', 'av_num', 'ac_num', 'pr_num', 'ui_num',
-    'is_exploited', 'age_cve', 'epss',
-    'port', 'is_public', 'host_type', 'host_criticality',
+    'epss', 'age_cve', 'ac_num', 'pr_num', 'ui_num', 'host_type', 'port'
 ]
 
 
 def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Reproduit le feature engineering des modèles classificateur_xgb.joblib
-    et regresseur_xgb.joblib (31 features).
-
-    Colonnes brutes attendues :
-        cvss_score, severity_num, av_num, ac_num, pr_num, ui_num,
-        is_exploited, age_cve, epss,
-        port, is_public, host_type, host_criticality
+    Reproduit le feature engineering des nouveaux modèles classificateur_xgb.joblib
+    et regresseur_xgb.joblib (11 features sans fuite de données).
 
     Toutes les colonnes manquantes sont imputées à 0.
-
-    Encodages CVSS :
-        av_num  : Physical=1, Local=2, Adjacent=3, Network=4
-        ac_num  : High=1, Low=2
-        pr_num  : None=0, Low=1, High=2
-        ui_num  : Required=0, None=1
     """
     out = df.copy()
 
@@ -130,71 +101,22 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
             out[col] = 0.0
         out[col] = pd.to_numeric(out[col], errors="coerce").fillna(0.0)
 
-    # ── Features CVE construites ──────────────────────────────────────────────
-
-    # Non-linéarité sévérité CVSS
-    out['cvss_sq']         = (out['cvss_score'] / 10.0) ** 2
-
-    # Interaction sévérité × vecteur d'attaque
-    out['severity_x_av']   = out['severity_num'] * out['av_num']
-
-    # Surface d'attaque normalisée [0,1]
-    av_norm  = (out['av_num'] - 1) / 3.0             # [0,1]
-    ac_ease  = (out['ac_num'] - 1) / 1.0             # ac_num ∈ {1,2}
-    pr_ease  = 1.0 - out['pr_num'] / 2.0             # pr_num ∈ {0,1,2}
-    out['attack_surface']  = (av_norm * 0.5 + ac_ease * 0.3 + pr_ease * 0.2).clip(0, 1)
-
-    # Réseau sans authentification : av=4 (Network) & pr=0 (None)
-    out['network_no_auth'] = ((out['av_num'] == 4) & (out['pr_num'] == 0)).astype(int)
-
-    # Pénalité interaction utilisateur requise (ui_num=0 → requise)
-    out['ui_penalty']      = (out['ui_num'] == 0).astype(int)
-
     # ── Features exploitabilité ───────────────────────────────────────────────
-
     # Log EPSS (distribution longue queue)
     out['epss_log']        = np.log1p(out['epss'])
 
-    # EPSS pondéré KEV
-    out['epss_kev']        = out['epss'] * (1.0 + out['is_exploited'])
-
     # ── Features temporelles ──────────────────────────────────────────────────
-
     # Tranche d'âge semestrielle (0–8)
     out['age_bucket']      = (out['age_cve'].clip(0, 9999) // 6).clip(0, 8).astype(int)
 
     # ── Features hôte / port ─────────────────────────────────────────────────
-
     port = out['port'].fillna(0).astype(int)
 
     # Type de service (0–4)
     out['svc_type_num']    = port.apply(lambda p: classify_service(p))
 
     # Flags booléens du port
-    out['port_is_highrisk'] = port.isin(PORTS_HIGHRISK).astype(int)
-    out['port_is_critical'] = port.isin(PORTS_CRITICAL).astype(int)
-    out['port_is_db']       = port.isin(PORTS_DB).astype(int)
     out['port_is_web']      = port.isin(PORTS_WEB).astype(int)
-
-    # ── Features croisées hôte × CVE ─────────────────────────────────────────
-
-    is_public  = out['is_public'].clip(0, 1)
-    is_network = (out['av_num'] == 4).astype(int)
-
-    # IP publique + vecteur réseau
-    out['public_and_network']   = (is_public * is_network)
-
-    # IP publique + CVE exploitée
-    out['public_and_exploit']   = (is_public * out['is_exploited'])
-
-    # IP publique + port critique
-    out['public_critical_port'] = (is_public * out['port_is_critical'])
-
-    # BD exposée (port DB + pas d'authentification requise)
-    out['db_exposed']           = (out['port_is_db'] * (out['pr_num'] == 0).astype(int))
-
-    # Criticité hôte × CVSS normalisé
-    out['host_x_cvss']          = out['host_criticality'] * (out['cvss_score'] / 10.0)
 
     return out[FEATURE_COLS]
 

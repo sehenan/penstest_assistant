@@ -502,8 +502,9 @@ async def ingest_scan(file: UploadFile = File(...), auto_pilot: bool = True):
     if not suffix:
         suffix = ".xml"
     
+    content = await file.read()
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        shutil.copyfileobj(file.file, tmp)
+        tmp.write(content)
         tmp_path = tmp.name
 
     session = get_session()

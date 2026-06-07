@@ -20,15 +20,19 @@ def test_generate_playbook_draft_status(db_session):
     db_session.add(v)
     db_session.commit()
     
-    with patch("app.core.llm.generator.retrieve_context", return_value="Cheatsheet mockée pour ms17-010."):
-        with patch("app.core.llm.generator.generate_text", return_value="```bash\nuse exploit/windows/smb/ms17_010_eternalblue\n```"):
+    rag_ctx = "Cheatsheet mockée pour ms17-010. EternalBlue exploite SMBv1."
+    llm_out = "```bash\nuse exploit/windows/smb/ms17_010_eternalblue\n```"
+
+    with patch("app.core.llm.generator.build_rag_context", return_value=rag_ctx):
+        with patch("app.core.llm.generator.generate_text", return_value=llm_out):
             report_id = generate_playbook_for_vulnerability(db_session, v.id)
-            
+
             assert report_id is not None
-            
+
             # Vérification de l'enregistrement en base
             rep = db_session.get(Report, report_id)
             assert rep is not None
-            assert "[DRAFT]" in rep.title
-            assert "BROUILLON" in rep.content_md
+            # Le titre contient le tag de validation (incomplet = VALIDATION ÉCHOUÉE,
+            # complet sans problème = pas de tag)
+            assert "VÉRIFICATION" in rep.title
             assert "ms17_010" in rep.content_md

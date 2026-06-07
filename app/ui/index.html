@@ -122,12 +122,25 @@
   .md-code-wrap:hover .copy-btn{opacity:1}
   .copy-btn:hover{background:rgba(255,255,255,0.2);color:var(--txt)}
 
-  .md-h1,.md-h2{font-weight:600;margin-top:16px;margin-bottom:8px;display:block;color:var(--txt)}
-  .md-h1{font-size:15px;color:var(--accent);border-bottom:1px solid var(--border);padding-bottom:4px}
-  .md-h2{font-size:13px}
+  .md-h1,.md-h2,.md-h3,.md-h4{font-weight:600;margin-top:16px;margin-bottom:6px;display:block;color:var(--txt)}
+  .md-h1{font-size:16px;color:var(--accent);border-bottom:1px solid var(--border);padding-bottom:6px;margin-top:20px}
+  .md-h2{font-size:14px;color:var(--txt);border-left:3px solid var(--accent);padding-left:8px;margin-top:18px}
+  .md-h3{font-size:12px;color:var(--txt2);text-transform:uppercase;letter-spacing:0.05em;margin-top:14px}
+  .md-h4{font-size:11px;color:var(--txt3);font-style:italic;margin-top:10px}
   .md-bold{font-weight:600;color:var(--txt)}
-  .md-list-item{display:flex;gap:8px;margin-bottom:4px;color:var(--txt2)}
-  .md-list-item::before{content:'•';color:var(--accent);font-weight:bold}
+  .md-list-item{display:flex;gap:8px;margin-bottom:4px;color:var(--txt2);padding-left:4px}
+  .md-list-item::before{content:'▸';color:var(--accent);font-size:9px;margin-top:2px;flex-shrink:0}
+  .md-ln{display:flex;gap:8px;margin-bottom:5px;color:var(--txt2);padding-left:4px}
+  .md-ln-n{color:var(--accent);font-family:var(--mono);font-size:10px;min-width:18px;flex-shrink:0;padding-top:1px}
+  .md-bq{border-left:3px solid var(--accent-dim);padding:8px 12px;color:var(--txt3);font-style:italic;background:var(--accent-dim);border-radius:0 4px 4px 0;margin:8px 0;font-size:11px}
+  .md-hr{border:none;border-top:1px solid var(--border2);margin:14px 0}
+  .md-tbl{width:100%;border-collapse:collapse;margin:10px 0;font-size:11px}
+  .md-tbl .md-td{padding:7px 11px;border:1px solid var(--border);color:var(--txt2);text-align:left;font-family:var(--sans);text-transform:none;letter-spacing:normal}
+  .md-tbl th.md-td{background:rgba(255,255,255,0.03);color:var(--txt);font-weight:600;font-size:10px}
+  .md-tbl tr:hover .md-td{background:var(--hover);cursor:default}
+  .md-p{color:var(--txt2);margin-bottom:4px;line-height:1.65}
+  .md-ic{background:rgba(255,255,255,0.07);padding:1px 5px;border-radius:3px;font-family:var(--mono);font-size:10px;color:var(--green);border:1px solid var(--border)}
+  .md-gap{height:6px}
 
   /* Thinking Animation */
   .thinking{display:flex;gap:4px;padding:4px 0}
@@ -164,11 +177,11 @@
   .field-label{font-size:10px;color:var(--txt3);font-family:var(--mono);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px}
   .field-val{font-size:13px;line-height:1.65;color:var(--txt2)}
   .split{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  .gen-out{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:16px;font-family:var(--mono);font-size:11px;line-height:1.7;white-space:pre-wrap;color:var(--txt2);margin-top:12px;min-height:60px;max-height:400px;overflow-y:auto;display:none}
+  .gen-out{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:20px;font-family:var(--sans);font-size:12px;line-height:1.7;color:var(--txt2);margin-top:12px;min-height:60px;max-height:500px;overflow-y:auto;display:none}
 
   .report-viewer{display:none;margin-top:20px}
   .report-viewer.visible{display:block}
-  .report-content{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:20px;font-family:var(--mono);font-size:12px;line-height:1.7;white-space:pre-wrap;color:var(--txt2);max-height:500px;overflow-y:auto}
+  .report-content{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:24px;font-family:var(--sans);font-size:12px;line-height:1.75;color:var(--txt2);max-height:600px;overflow-y:auto}
 
   /* ═══ MODAL ═══ */
   .modal-wrap{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;padding:20px}
@@ -502,16 +515,60 @@ async function api(url, method, body) {
 
 // ─── NAVIGATION ─────────────────────────────────────────────────────────
 // ─── UTILS ─────────────────────────────────────────────────────────────
-function fmtMD(t) {
-  if (!t) return '';
-  let res = t.replace(/```([\s\S]*?)```/g, (match, code) => {
-    return `<div class="md-code-wrap"><code class="md-code">${code.trim()}</code><button class="copy-btn" onclick="copyCode(this)">Copier</button></div>`;
+function _escH(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function _inFmt(s){
+  s=_escH(s);
+  s=s.replace(/\*\*\*(.*?)\*\*\*/g,'<strong><em>$1</em></strong>');
+  s=s.replace(/\*\*(.*?)\*\*/g,'<strong class="md-bold">$1</strong>');
+  s=s.replace(/`([^`\n]+)`/g,'<code class="md-ic">$1</code>');
+  return s;
+}
+function _mdTable(tlines){
+  const rows=tlines.filter(l=>!/^\|[\s:\-|]+\|$/.test(l.trim()));
+  if(!rows.length)return '';
+  let h='<table class="md-tbl"><tbody>';
+  rows.forEach((row,ri)=>{
+    const cells=row.split('|').slice(1,-1);
+    const tag=ri===0?'th':'td';
+    h+='<tr>'+cells.map(c=>`<${tag} class="md-td">${_inFmt(c.trim())}</${tag}>`).join('')+'</tr>';
   });
-  res = res.replace(/^# (.*$)/gim, '<span class="md-h1">$1</span>');
-  res = res.replace(/^## (.*$)/gim, '<span class="md-h2">$1</span>');
-  res = res.replace(/^- (.*$)/gim, '<div class="md-list-item">$1</div>');
-  res = res.replace(/\*\*(.*?)\*\*/g, '<span class="md-bold">$1</span>');
-  return res;
+  return h+'</tbody></table>';
+}
+function fmtMD(t){
+  if(!t)return '';
+  const blocks=[];
+  t=t.replace(/```([\w-]*)\n([\s\S]*?)```/g,(_,lang,code)=>{
+    const id=blocks.length;
+    blocks.push(_escH(code.trim()));
+    return '\x00CB'+id+'\x00';
+  });
+  const lines=t.split('\n');
+  const out=[];
+  let i=0;
+  while(i<lines.length){
+    const raw=lines[i];
+    const cbm=raw.match(/^\x00CB(\d+)\x00$/);
+    if(cbm){
+      out.push(`<div class="md-code-wrap"><code class="md-code">${blocks[+cbm[1]]}</code><button class="copy-btn" onclick="copyCode(this)">Copier</button></div>`);
+      i++;continue;
+    }
+    if(/^[-*_]{3,}$/.test(raw.trim())&&raw.trim().length>=3){out.push('<hr class="md-hr">');i++;continue;}
+    if(/^\|.*\|$/.test(raw.trim())){
+      const tl=[];
+      while(i<lines.length&&/^\|.*\|$/.test(lines[i].trim())){tl.push(lines[i]);i++;}
+      out.push(_mdTable(tl));continue;
+    }
+    if(/^>/.test(raw)){out.push(`<div class="md-bq">${_inFmt(raw.replace(/^>\s?/,''))}</div>`);i++;continue;}
+    const hm=raw.match(/^(#{1,4})\s+(.*)/);
+    if(hm){out.push(`<div class="md-h${hm[1].length}">${_inFmt(hm[2])}</div>`);i++;continue;}
+    const nlm=raw.match(/^(\d+)\.\s+(.*)/);
+    if(nlm){out.push(`<div class="md-ln"><span class="md-ln-n">${nlm[1]}.</span>${_inFmt(nlm[2])}</div>`);i++;continue;}
+    const blm=raw.match(/^[-*+]\s+(.*)/);
+    if(blm){out.push(`<div class="md-list-item">${_inFmt(blm[1])}</div>`);i++;continue;}
+    if(!raw.trim()){out.push('<div class="md-gap"></div>');i++;continue;}
+    out.push(`<div class="md-p">${_inFmt(raw)}</div>`);i++;
+  }
+  return out.join('');
 }
 
 function copyCode(btn) {
@@ -808,7 +865,7 @@ async function genAction(mode) {
   try {
     const r = await api('/api/generate', 'POST', JSON.stringify({ vuln_id: selId, mode: mode }));
     lastGenContent = r.content_md || '';
-    out.innerText = lastGenContent;
+    out.innerHTML = fmtMD(lastGenContent);
     document.getElementById('gen-actions').style.display = 'flex';
     log('Génération ' + mode + ' terminée pour vuln #' + selId, 'ok');
     logAudit('Génération ' + mode.toUpperCase() + ' — vuln #' + selId);
@@ -967,7 +1024,7 @@ async function viewReport(id) {
   try {
     const r = await api('/api/reports/' + id);
     document.getElementById('rep-viewer-title').innerText = r.title;
-    document.getElementById('rep-viewer-content').innerText = r.content_md || '';
+    document.getElementById('rep-viewer-content').innerHTML = fmtMD(r.content_md || '');
     document.getElementById('rep-viewer').classList.add('visible');
   } catch (e) { log('Erreur rapport: ' + e.message, 'warn'); }
 }

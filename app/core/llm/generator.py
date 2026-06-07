@@ -7,8 +7,9 @@ import logging
 from sqlalchemy.orm import Session
 
 from app.db.models import Vulnerability, Report
-from app.core.llm.rag import retrieve_context
+from app.core.llm.rag import build_rag_context, retrieve_context
 from app.core.llm.ollama_client import generate_text
+from app.core.llm.report_validator import ReportValidator
 
 logger = logging.getLogger(__name__)
 
@@ -16,50 +17,110 @@ from typing import Literal
 
 # --- Prompts Spécifiques ---
 
-SYSTEM_PROMPT_BASE = """Tu es SIATI, un expert technique senior en cybersécurité offensive et consultant en test d'intrusion.
-TON STYLE : Professionnel, factuel, extrêmement technique. Pas de politesses.
-LANGUE : FRANÇAIS UNIQUEMENT. Ne réponds jamais en anglais.
+SYSTEM_PROMPT_BASE = """Tu es un assistant de pentest professionnel et rigoureux.
+Tu génères UNIQUEMENT des rapports techniques fondés sur les données fournies dans la section CONTEXTE.
 
-RÈGLES CRITIQUES DE SÉCURITÉ ET PRÉCISION :
-1. CIBLE : Toutes les commandes doivent cibler l'IP et le Port fournis dans le contexte.
-2. PAS D'HALLUCINATION LOCALE : Ne suggère JAMAIS de commandes qui affichent la version du client local (ex: PAS de `ssh -V`, PAS de `nmap -V`).
-3. VÉRIFICATION RÉELLE : Pour vérifier une version, utilise le Banner Grabbing (nc, telnet) ou des scans de service Nmap (`-sV`).
-4. PERTINENCE : N'utilise que des outils adaptés au protocole (ex: PAS de Burp Suite pour SSH, PAS de Hydra pour un service sans authentification).
-5. FORMATAGE : Utilise un Markdown riche (Titres, Tableaux, Blocs de code).
+RÈGLES ABSOLUES :
+
+R1. COMMANDES SHELL
+    - Tu n'inventes aucune commande. Si tu n'es pas certain, tu écris :
+      [COMMANDE À VÉRIFIER]
+    - Commandes interdites connues pour hallucination :
+        metasploit -s        → correct : msfconsole
+        nc -vudp             → correct : nc -nv (TCP) ou nc -nvu (UDP si pertinent)
+        run -p               → correct : run  ou  exploit
+        ssh -i id_rsa <cible> → hors-sujet si le service n'est pas SSH
+
+R2. METASPLOIT — syntaxe stricte uniquement
+    Formes valides :
+        msfconsole
+        use <chemin/module/complet>
+        set <OPTION> <valeur>
+        run   OU   exploit
+    Formes interdites :
+        metasploit -s
+        use exploits/<nom_court_sans_chemin>
+        set PAYLOAD <nom_court>   (toujours spécifier le chemin complet)
+        run -p
+    Si le module exact n'est pas dans le CONTEXTE → écrire :
+        [MODULE METASPLOIT À IDENTIFIER — non confirmé dans la base locale]
+
+R3. PROTOCOLES
+    - Ne pas utiliser UDP pour un service TCP (PostgreSQL, HTTP, SMB, etc.)
+    - Vérifier le protocole du service dans le CONTEXTE avant toute commande réseau
+
+R4. CVE ET VULNÉRABILITÉS
+    - Tu ne décris aucune CVE autrement que ce qui est écrit dans le CONTEXTE
+    - Tu n'associes pas une CVE à un service/version si cette association
+      n'est pas explicitement confirmée dans le CONTEXTE
+    - Si la description CVE est absente : écrire
+      Information non disponible dans la base locale SIATI.
+
+R5. INFORMATIONS MANQUANTES
+    Si une information est absente du CONTEXTE, écrire :
+    Information non disponible dans la base locale SIATI.
+    Ne jamais compléter par des suppositions.
+
+R6. COMPLÉTUDE DU RAPPORT
+    - Le rapport doit être COMPLET jusqu'à la section Conclusion
+    - Si tu approches de ta limite, terminer la section en cours
+    - Terminer OBLIGATOIREMENT par cette ligne exacte :
+      [RAPPORT COMPLET — aucune troncature]
 """
 
 AUDIT_PROMPT_EXTENSION = """
-OBJECTIF : AUDIT ET VÉRIFICATION TECHNIQUE.
-- Étape 1 : Confirmation de l'accessibilité (Ping, Test de port).
-- Étape 2 : Identification précise de la version (Banner Grabbing, Nmap NSE).
-- Étape 3 : Corrélation avec les vulnérabilités connues (CVE).
-L'audit doit permettre de confirmer SANS AMBIGUÏTÉ que la cible est vulnérable avant de tenter l'exploitation.
+MISSION : Rapport de vérification technique pré-exploitation. Objectif : confirmer l'exploitabilité de la vulnérabilité SANS AMBIGUÏTÉ avant toute tentative d'exploitation.
+
+STRUCTURE IMPOSÉE — respecter cet ordre et ces titres exacts :
+
+## Résumé exécutif
+3 à 5 lignes : décrire le service affecté, le mécanisme précis de la faille (pas une paraphrase du CVE), le niveau de risque réel et l'impact métier potentiel.
+
+## Phase 1 — Reconnaissance et accessibilité
+Commande nmap ciblée avec les scripts NSE adaptés au service. Fournir l'output attendu commenté ligne par ligne.
+
+## Phase 2 — Identification de version
+Banner grabbing ou requête native au protocole pour confirmer la version. Utiliser l'IP et le port fournis directement. Indiquer la sortie attendue et comment interpréter la version retournée.
+
+## Phase 3 — Vérification de la vulnérabilité
+Test spécifique au CVE mentionné (pas un test générique "est-ce que le service répond ?"). Fournir la commande exacte, la sortie attendue si la cible EST vulnérable, et la sortie attendue si elle NE L'EST PAS.
+
+## Indicateurs de compromission (IOC)
+Lister les artefacts laissés dans les logs ou la réponse réseau qui confirment la présence de la faille.
+
+## Recommandation de remédiation
+Version corrigée, paramètre à modifier, ou mesure compensatoire si le patch n'est pas applicable immédiatement.
 """
 
 PAYLOAD_PROMPT_EXTENSION = """
-OBJECTIF : EXPLOITATION ET PROOF OF CONCEPT (POC).
-- Étape 1 : Configuration de l'environnement d'attaque.
-- Étape 2 : Commande d'exploitation spécifique (ex: Python script, Metasploit, Exploit-DB).
-- Étape 3 : Payload (Reverse Shell, Exécution de commande).
-Si un CVE est fourni, centre TOUTE l'explication sur l'exploitation de ce CVE précis. Évite les conseils génériques.
+MISSION : Proof of Concept d'exploitation technique. Démontrer concrètement l'exécution de code arbitraire ou l'accès non autorisé via le CVE identifié.
+
+STRUCTURE IMPOSÉE — respecter cet ordre et ces titres exacts :
+
+## Résumé de l'exploitation
+2 lignes : mécanisme précis de la faille, prérequis (credentials ? accès réseau ? version minimum ?), impact réel (RCE, lecture fichier, élévation de privilège).
+
+## Prérequis et environnement
+Outils nécessaires, configuration spécifique (listener Metasploit, variables d'environnement, etc.).
+
+## Exploitation pas à pas
+
+### Étape 1 — Accès initial
+Commande de connexion/authentification au service avec l'IP et le port exacts. Output attendu.
+
+### Étape 2 — Déclenchement de la vulnérabilité
+Commande ou payload spécifique au CVE. Output attendu en cas de succès.
+
+### Étape 3 — Preuve d'exécution (PoC)
+Commande de validation : `id`, lecture de `/etc/passwd`, établissement d'un reverse shell, etc.
+
+## Module Metasploit (si disponible)
+Fournir la séquence `use / set / run` complète avec les options RHOSTS, RPORT, LHOST correctement configurées.
+
+## Impact post-exploitation
+Ce que l'attaquant peut accomplir immédiatement après exploitation réussie (persistance, pivot, exfiltration).
 """
 
-def validate_playbook_content(text: str, mode: str) -> bool:
-    """Vérifie la qualité et rejette les structures méta-anglaises génériques."""
-    if not text or len(text) < 150:
-        return False
-    
-    txt_lower = text.lower()
-    # On autorise un peu de bruit anglais (car TinyLlama a tendance à en générer)
-    # On se concentre surtout sur la présence de code (```) et de mots-clés.
-
-    has_code = "```" in text
-    if mode == "audit":
-        valid = has_code and (any(kw in txt_lower for kw in ["nmap", "curl", "vérification", "scan", "msf"]))
-    else:
-        valid = has_code and (any(kw in txt_lower for kw in ["exploit", "payload", "msfconsole", "shell", "rce"]))
-    
-    return valid
 
 def generate_playbook_for_vulnerability(
     db_session: Session, 
@@ -86,51 +147,80 @@ def generate_playbook_for_vulnerability(
         sys_prompt = SYSTEM_PROMPT_BASE + PAYLOAD_PROMPT_EXTENSION
         titre_prefix = "EXPLOITATION"
 
-    # 2. Requête Vectorielle optimisée
-    if cve and cve != "INCONNU":
-        query = f"Exploitation technique détaillée pour {cve} sur {svc.service} {svc.version}"
+    # 2. Contexte RAG vérifié (confirmation CVE ↔ service/version)
+    context = build_rag_context(
+        service=svc.service,
+        version=svc.version or "",
+        cve_id=cve,
+        top_k=3,
+    )
+    
+    # 3. Enrichissement exploit
+    from app.db.models import Exploit as ExploitModel
+    exploit = db_session.query(ExploitModel).filter(ExploitModel.cve == cve).first()
+    exploit_info = ""
+    if exploit and exploit.disponible:
+        msf = f" — Module Metasploit : `{exploit.metasploit_module}`" if exploit.metasploit_module else ""
+        exploit_info = f"✅ Exploit public disponible{msf}"
     else:
-        query = f"Vérification et exploitation du service {svc.service} version {svc.version} sur port {svc.port}"
-    
-    context = retrieve_context(query, top_k=3)
-    
-    # 3. Composition du Prompt Métier
+        exploit_info = "Aucun exploit public référencé"
+
+    kev_flag = "⚠️ OUI — activement exploité dans la nature (CISA KEV)" if vuln.is_kev else "Non"
+    epss_str = f"{vuln.epss_score:.4f} ({vuln.epss_score*100:.1f}% probabilité d'exploitation à 30j)" if vuln.epss_score else "N/A"
+
+    # 4. Composition du Prompt Métier
     user_prompt = f"""
-### INFORMATIONS CIBLE ###
-- IP : {host.ip}
-- SERVICE : {svc.service}
-- VERSION : {svc.version or 'Inconnue'}
-- PORT : {svc.port} ({svc.protocol})
-- VULNÉRABILITÉ : {cve}
+## FICHE CIBLE
 
-### CONTEXTE DE RÉFÉRENCE (RAG) ###
-{context}
+| Champ          | Valeur                                         |
+|:---------------|:-----------------------------------------------|
+| IP             | {host.ip}                                      |
+| Port / Proto   | {svc.port}/{svc.protocol}                      |
+| Service        | {svc.service}                                  |
+| Version        | {svc.version or 'Inconnue'}                    |
+| CVE            | {cve}                                          |
+| Score CVSS     | {vuln.cvss_score or 'N/A'}                     |
+| Vecteur CVSS   | {vuln.cvss_vector or 'N/A'}                    |
+| Score EPSS     | {epss_str}                                     |
+| Exploité (KEV) | {kev_flag}                                     |
+| Exploit dispo  | {exploit_info}                                 |
 
-### INSTRUCTIONS POUR LE RAPPORT PROFESSIONNEL ###
-1. Rédige un rapport technique de qualité consultant.
-2. Utilise des tableaux Markdown pour résumer les infos si nécessaire.
-3. Ne mentionne JAMAIS ton identité d'IA.
-4. Pour SSH, concentre-toi sur l'énumération d'utilisateurs ou les failles de clé si applicables.
-5. Sois extrêmement précis sur les syntaxes de commandes.
+## DESCRIPTION DE LA VULNÉRABILITÉ
+{vuln.description or 'Aucune description disponible dans la base locale.'}
+
+## CONTEXTE KNOWLEDGE BASE (RAG)
+{context if context else 'Aucun document RAG disponible pour ce CVE.'}
+
+## CONSIGNES DE RÉDACTION
+- Utiliser directement {host.ip} et {svc.port} dans toutes les commandes — zéro placeholder.
+- Ne jamais mentionner l'identité du système d'IA.
+- Adapter chaque commande au service {svc.service} (pas d'outils génériques hors-sujet).
 """
     logger.info("Soumission du Prompt [%s] pour %s...", mode.upper(), cve)
-    
-    # 4. Appel du Modèle Local
+
+    # 5. Appel du Modèle Local
     generated_md = generate_text(prompt=user_prompt, system_prompt=sys_prompt)
     
     if not generated_md:
         logger.error("Défaut de réponse de l'LLM.")
         return None
         
-    # 5. Validation Automatique (Preuve de Performance LLM)
-    is_valid = validate_playbook_content(generated_md, mode)
+    # 6. Validation post-génération (hallucinations, troncature, cohérence CVE)
+    validation = ReportValidator().validate(
+        report=generated_md,
+        cve_id=cve,
+        service=svc.service,
+        version=svc.version or "",
+    )
+    is_valid = validation["valid"]
     if not is_valid:
-        logger.warning("⚠️ Playbook généré semble incomplet ou mal formaté. Marquage comme 'DRAFT'")
+        for issue in validation["issues"]:
+            logger.warning("⚠️ [%s] %s", issue["code"], issue["detail"])
         status_tag = " [VALIDATION ÉCHOUÉE]"
     else:
         status_tag = ""
 
-    # 6. Gestion du Rapport (UPSERT)
+    # 7. Gestion du Rapport (UPSERT)
     from datetime import datetime
     titre = f"[{titre_prefix}] {host.ip}:{svc.port} - {cve}{status_tag}"
     

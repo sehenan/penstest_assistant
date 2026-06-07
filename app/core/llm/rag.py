@@ -7,7 +7,8 @@ import json
 import logging
 import os
 from pathlib import Path
-import numpy as np
+# Évite le conflit OpenMP entre FAISS et PyTorch (segfault sinon sur macOS)
+os.environ.setdefault("OMP_NUM_THREADS", "1")
 
 try:
     import faiss
@@ -64,6 +65,53 @@ def build_index(documents: list[dict[str, str]]) -> None:
         json.dump({"texts": texts, "metadata": metadata}, f, ensure_ascii=False, indent=2)
         
     logger.info("Index FAISS sauvegardé avec succès dans %s", FAISS_DB_DIR)
+
+
+def build_rag_context(service: str, version: str, cve_id: str, top_k: int = 3) -> str:
+    """
+    Construit le contexte injecté dans le prompt Ollama.
+    Ne contient QUE des données confirmées par la base locale intel.
+    Si la CVE n'est pas confirmée pour ce service/version, retourne un avertissement
+    qui instruira le modèle de ne pas décrire d'exploitation.
+    """
+    from app.db.intel_reader import IntelReader, NO_CVE_CONFIRMED
+    intel = IntelReader()
+
+    cve_entry = intel.get_cve(cve_id)
+    confirmed_cves = intel.get_cves_for_service(service, version)
+    cve_confirmed = any(c["cve_id"] == cve_id for c in confirmed_cves)
+
+    if not cve_confirmed and cve_entry is None:
+        warning = (
+            f"AVERTISSEMENT : {cve_id} n'est pas confirmée dans la base locale "
+            f"pour {service} {version}.\n"
+            "Le rapport ne doit pas décrire d'exploitation pour cette combinaison.\n"
+            f"{NO_CVE_CONFIRMED}"
+        )
+        faiss_chunks = retrieve_context(f"{cve_id} {service} {version}", top_k=top_k)
+        if faiss_chunks:
+            return warning + "\n\nDocumentation technique (base locale FAISS) :\n" + faiss_chunks
+        return warning
+
+    context_lines: list[str] = []
+    if cve_entry:
+        context_lines += [
+            f"CVE-ID : {cve_entry['cve_id']}",
+            f"Description : {cve_entry['description'] or 'N/A'}",
+            f"CVSS v3 : {cve_entry.get('cvss_score', 'N/A')} — {cve_entry.get('cvss_vector', 'N/A')}",
+            f"CWE : {cve_entry.get('cwe_id', 'N/A')}",
+            f"Versions affectées : {json.dumps(cve_entry.get('affected_versions', []))}",
+            f"Versions corrigées : {json.dumps(cve_entry.get('fixed_versions', []))}",
+            f"PoC disponible : {'Oui' if cve_entry.get('poc_available') else 'Non'}",
+            f"Mots-clés techniques : {', '.join(cve_entry.get('keywords', []))}",
+        ]
+
+    faiss_chunks = retrieve_context(f"{cve_id} {service} {version}", top_k=top_k)
+    if faiss_chunks:
+        context_lines.append("\nDocumentation technique (base locale FAISS) :")
+        context_lines.append(faiss_chunks)
+
+    return "\n".join(context_lines) if context_lines else "Aucune donnée disponible dans la base locale."
 
 
 def retrieve_context(query: str, top_k: int = 3) -> str:

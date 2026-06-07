@@ -210,12 +210,12 @@ def ui(
     """[Phase 5] Démarre le Dashboard SIATI (FastAPI + HTML)."""
     typer.secho(f"--> Lancement de l'IHM SIATI sur http://{host}:{port}", fg=typer.colors.MAGENTA)
     server_module = "app.ui.server:app"
+    env = {**__import__("os").environ, "OMP_NUM_THREADS": "1"}
     subprocess.run([
         sys.executable, "-m", "uvicorn", server_module,
         "--host", host,
         "--port", str(port),
-        "--reload",
-    ])
+    ], env=env)
 
 @app.command("index-rag")
 def index_rag(knowledge_dir: str = "data/knowledge"):

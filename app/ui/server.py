@@ -11,6 +11,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.append(str(ROOT))
 
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -20,11 +23,27 @@ from app.db.database import init_db
 from app.core.error_handler import app_error_handler
 from app.api.main_api import api_router
 
+logger = logging.getLogger(__name__)
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    init_db()
+    # Préchargement du modèle d'embedding RAG pour éviter le blocage à la 1ère requête
+    try:
+        from app.core.llm.rag import _get_embed_model
+        import asyncio
+        await asyncio.get_event_loop().run_in_executor(None, _get_embed_model)
+        logger.info("Modèle RAG (SentenceTransformer) préchargé.")
+    except Exception as e:
+        logger.warning("Préchargement RAG ignoré : %s", e)
+    yield
+
 # ── app setup ─────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="SIATI API",
     description="Système Intelligent d'Assistance aux Tests d'Intrusion",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # Add global error handler
@@ -36,8 +55,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-init_db()
 
 UI_DIR = Path(__file__).parent
 

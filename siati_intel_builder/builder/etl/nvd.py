@@ -1,13 +1,33 @@
 import datetime
+import json
 import logging
 import time
 import urllib.request
-import json
 from builder.models import IntelCVE
 
 logger = logging.getLogger(__name__)
 
 NVD_BASE_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+
+# Termes techniques extraits de la description pour alimenter ReportValidator
+_KEYWORD_PATTERNS = [
+    "copy to/from program", "copy from program", "superuser", "rce",
+    "remote code execution", "command injection", "sql injection",
+    "buffer overflow", "path traversal", "directory traversal",
+    "authentication bypass", "privilege escalation", "arbitrary code",
+    "execute", "exploit", "metasploit", "reverse shell", "backdoor",
+]
+
+def _extract_keywords(description: str, cve_id: str) -> list[str]:
+    """Extrait les mots-clés techniques depuis la description NVD."""
+    if not description:
+        return []
+    desc_lower = description.lower()
+    found = [kw for kw in _KEYWORD_PATTERNS if kw in desc_lower]
+    # Ajoute le CVE-ID lui-même comme mot-clé de cohérence
+    found.append(cve_id.lower())
+    return found
+
 
 def fetch_and_load_nvd(session, days_back=30, api_key=None):
     """
@@ -72,11 +92,45 @@ def fetch_and_load_nvd(session, days_back=30, api_key=None):
                     if weaknesses:
                         cwe_id = next((d.get("value") for d in weaknesses[0].get("description", []) if d.get("value", "").startswith("CWE-")), None)
                     
-                    # On supprime s'il existe déjà (upsert pauvre)
+                    # Extraction affected_versions (format NVD CPE match ranges)
+                    affected_versions = []
+                    fixed_versions = []
+                    for config in cve.get("configurations", []):
+                        for node in config.get("nodes", []):
+                            for match in node.get("cpeMatch", []):
+                                if not match.get("vulnerable", False):
+                                    continue
+                                entry = {}
+                                if "versionStartIncluding" in match:
+                                    entry["version_start_including"] = match["versionStartIncluding"]
+                                if "versionEndExcluding" in match:
+                                    entry["version_end_excluding"] = match["versionEndExcluding"]
+                                    fixed_versions.append(match["versionEndExcluding"])
+                                if "versionEndIncluding" in match:
+                                    entry["version_end_including"] = match["versionEndIncluding"]
+                                if entry:
+                                    affected_versions.append(entry)
+                                elif "criteria" in match:
+                                    # fallback: extract version from CPE string
+                                    parts = match["criteria"].split(":")
+                                    if len(parts) > 5 and parts[5] not in ("*", "-", ""):
+                                        affected_versions.append(parts[5])
+
+                    # Extraction keywords depuis la description
+                    keywords = _extract_keywords(desc, cve_id)
+
+                    # poc_available : présence de références de type exploit
+                    poc_refs = {"exploit-db", "packetstorm", "github", "exploit"}
+                    poc_available = any(
+                        any(tag.lower() in poc_refs for tag in ref.get("tags", []))
+                        for ref in cve.get("references", [])
+                    )
+
+                    # Upsert : supprime l'existant puis réinsère
                     existing = session.query(IntelCVE).filter_by(cve_id=cve_id).first()
                     if existing:
                         session.delete(existing)
-                    
+
                     session.add(IntelCVE(
                         cve_id=cve_id,
                         description=desc,
@@ -84,7 +138,11 @@ def fetch_and_load_nvd(session, days_back=30, api_key=None):
                         cvss_v3_score=cvss_v3,
                         cvss_v4_score=cvss_v4,
                         cvss_v3_vector=cvss_v3_vector,
-                        cwe_id=cwe_id
+                        cwe_id=cwe_id,
+                        affected_versions=json.dumps(affected_versions),
+                        fixed_versions=json.dumps(fixed_versions),
+                        keywords=json.dumps(keywords),
+                        poc_available=poc_available,
                     ))
                     loaded += 1
                 

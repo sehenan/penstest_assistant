@@ -454,6 +454,12 @@ class ChatRequest(BaseModel):
 
 @api_router.post("/api/generate")
 def generate_playbook(req: PlaybookRequest):
+    from app.core.llm.ollama_client import check_ollama_status
+    if not check_ollama_status():
+        return JSONResponse(
+            status_code=503,
+            content={"ok": False, "error": "Ollama inaccessible. Lancez Ollama avec : ollama serve"},
+        )
     session = get_session()
     try:
         from app.core.llm.generator import generate_playbook_for_vulnerability
@@ -467,7 +473,7 @@ def generate_playbook(req: PlaybookRequest):
                 "content_md": r.content_md if r else "",
                 "stage": req.mode,
             }
-        return JSONResponse(status_code=500, content={"ok": False, "error": "Génération échouée"})
+        return JSONResponse(status_code=500, content={"ok": False, "error": "Génération échouée — réponse LLM vide ou invalide"})
     except Exception as e:
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
     finally:

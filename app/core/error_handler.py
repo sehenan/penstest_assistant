@@ -9,16 +9,19 @@ import traceback
 from datetime import datetime
 import json
 import os
+from pathlib import Path
 
-# Ensure logs directory exists
-os.makedirs('logs', exist_ok=True)
+# Ensure logs directory exists (absolute path relative to project root)
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+_LOGS_DIR = _PROJECT_ROOT / "logs"
+os.makedirs(_LOGS_DIR, exist_ok=True)
 
 # Configure structured logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('logs/app.log'),
+        logging.FileHandler(str(_LOGS_DIR / 'app.log')),
         logging.StreamHandler()
     ]
 )

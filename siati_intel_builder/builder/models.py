@@ -15,6 +15,11 @@ class IntelCVE(Base):
     cwe_id = Column(String, nullable=True)
     published_date = Column(DateTime, nullable=True)
     last_modified_date = Column(DateTime, nullable=True)
+    # Champs nécessaires pour la validation sans hallucination
+    affected_versions = Column(Text, nullable=True)  # JSON array (format NVD CPE ranges)
+    fixed_versions = Column(Text, nullable=True)      # JSON array
+    keywords = Column(Text, nullable=True)            # JSON array — utilisé par ReportValidator
+    poc_available = Column(Boolean, default=False, nullable=False)
 
 class IntelEPSS(Base):
     __tablename__ = "intel_epss"

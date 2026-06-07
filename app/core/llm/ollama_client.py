@@ -55,11 +55,11 @@ def chat(messages: list[dict], system_prompt: str = "") -> str | None:
         "stream": False,
         "options": {
             "temperature": 0.1,
-            "num_predict": 1024,
-            "repeat_penalty": 1.25,
-            "top_p": 0.6,
-            "top_k": 20,
-            "stop": ["Introduction:", "Overview:", "Bibliography:", "Conclusion:"]
+            "num_predict": 4096,
+            "repeat_penalty": 1.1,
+            "top_p": 0.9,
+            "top_k": 40,
+            "stop": ["Introduction:", "Overview:", "Bibliography:"]
         }
     }
     

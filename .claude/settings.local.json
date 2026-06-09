@@ -10,7 +10,29 @@
       "Bash(python -c \"import xgboost; print\\('xgboost ok', xgboost.__version__\\)\")",
       "Bash(python main.py -web --port 8505)",
       "Bash(echo \"PID=$!\")",
-      "Bash(curl -s http://127.0.0.1:8505/)"
+      "Bash(curl -s http://127.0.0.1:8505/)",
+      "Bash(awk '{print $2}')",
+      "Bash(.venv/bin/python -m pip freeze)",
+      "Bash(.venv/bin/python --version)",
+      "Bash(.venv/bin/python -c \"import markdown; print\\('markdown', markdown.__version__\\)\")",
+      "Bash(.venv/bin/python -c \"import xhtml2pdf; print\\('xhtml2pdf OK'\\)\")",
+      "Bash(curl -fsS -m 12 https://download.pytorch.org/whl/cpu/torch/)",
+      "Bash(.venv/bin/python -m pytest -q)",
+      "Bash(.venv/bin/python -m pytest -q --ignore=tests/test_nvd.py --ignore=tests/test_ml.py)",
+      "Bash(.venv/bin/python -c \"import bcrypt; print\\('bcrypt', bcrypt.__version__\\)\")",
+      "Bash(.venv/bin/python -c \"from passlib.hash import bcrypt as b; print\\(b.hash\\('x'\\)[:10],'OK'\\)\")",
+      "Bash(.venv/bin/python -c \"import ast; ast.parse\\(open\\('app/cmd.py'\\).read\\(\\)\\); print\\('cmd.py syntax OK'\\)\")",
+      "Bash(.venv/bin/python -c \"from app import cmd; print\\('cmd module imports OK; ui defaults host=%r' % cmd.ui.__defaults__ if hasattr\\(cmd.ui,'__defaults__'\\) else 'ui present'\\)\")",
+      "Bash(.venv/bin/python -m pytest tests/test_llm.py tests/test_report_validator.py -q)",
+      "Bash(.venv/bin/python -c \"from app import cmd; print\\('OK'\\)\")",
+      "Bash(.venv/bin/python main.py ingest data/inputs/audit_full_scan.xml)",
+      "Bash(.venv/bin/python main.py enrich)",
+      "Bash(sqlite3 data/pentest.db \".tables\")",
+      "Bash(sqlite3 data/pentest.db \".schema vulnerabilities\")",
+      "Bash(sqlite3 *)",
+      "Bash(.venv/bin/python -c \"import ast; ast.parse\\(open\\('app/core/enrichment/cpe_to_cve.py'\\).read\\(\\)\\); print\\('syntax OK'\\)\")",
+      "Bash(.venv/bin/python *)",
+      "Bash(git commit -q -m ' *)"
     ]
   }
 }

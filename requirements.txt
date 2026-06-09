@@ -1,49 +1,57 @@
-# === FICHIER : requirements.txt ===
+# === SIATI — Dépendances de PRODUCTION (runtime) ===
+# Versions épinglées sur l'environnement validé (.venv / Python 3.12).
+# Les outils de test/qualité sont dans requirements-dev.txt.
+#
+# NOTE PyTorch : installer la roue CPU AVANT ce fichier pour éviter les
+# paquets CUDA (~2 Go). Le Dockerfile s'en charge via l'index officiel CPU.
 
-# Core Dependencies
-faiss-cpu
-sentence-transformers
-tiktoken
-requests
-pyyaml
-loguru
-pandas
-numpy
-sqlalchemy
-pytest
-pytest-mock
+# --- API & Web ---
+fastapi==0.136.3
+uvicorn[standard]==0.48.0
+pydantic==2.13.4
+pydantic-settings==2.14.1
+python-multipart==0.0.30
+typer==0.25.1
+gunicorn==26.0.0
 
-# Security & Authentication
-passlib[bcrypt]
-python-jose[cryptography]
-python-multipart
+# --- Base de données ---
+sqlalchemy==2.0.22
+aiosqlite==0.22.1
 
-# Rate Limiting & Caching
-redis
+# --- Parsing & utilitaires ---
+lxml==6.1.1
+pyyaml==6.0.3
+loguru==0.7.3
+requests==2.34.2
+packaging==24.2
 
-# Async Database
-aiosqlite
-asyncpg
+# --- Données & Machine Learning ---
+pandas==2.1.1
+numpy==1.26.4
+scikit-learn==1.8.0
+xgboost==3.2.0
+joblib==1.5.3
+matplotlib==3.10.9
+seaborn==0.13.2
 
-# API & Web
-fastapi
-uvicorn[standard]
-pydantic
-pydantic-settings
+# --- RAG (recherche vectorielle locale) ---
+faiss-cpu==1.14.2
+sentence-transformers==5.5.1
+tiktoken==0.13.0
 
-# Monitoring & Observability
-prometheus-client
+# --- Sécurité & Authentification ---
+passlib==1.7.4
+# bcrypt épinglé en 4.0.1 : passlib 1.7.4 est INCOMPATIBLE avec bcrypt >= 4.1
+# (suppression de bcrypt.__about__ -> ValueError au hachage).
+bcrypt==4.0.1
+python-jose[cryptography]==3.5.0
 
-# Testing & Quality
-pytest-asyncio
-pytest-cov
-black
-flake8
-mypy
-deepeval
-anthropic
+# --- Cache / Rate limiting (optionnel, fallback mémoire si indisponible) ---
+redis==8.0.0
 
+# --- Observabilité ---
+prometheus-client==0.21.1
 
-# Production
-gunicorn
-gevent
+# --- Export PDF des rapports ---
+markdown==3.7
+xhtml2pdf==0.2.16

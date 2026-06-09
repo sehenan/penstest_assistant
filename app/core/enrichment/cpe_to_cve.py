@@ -56,6 +56,94 @@ def _extract_cpe_from_text(text: str) -> Optional[str]:
     return m.group(1) if m else None
 
 
+# ─── Version handling (ANTI-HALLUCINATION) ────────────────────────────────────
+# Le rapprochement CVE n'est JAMAIS fait sur le seul nom de produit : la version
+# détectée doit tomber dans la plage de versions vulnérables déclarée par le NVD.
+# Si la version est inconnue ou la plage absente, AUCUNE CVE n'est associée.
+
+_VER_RE = re.compile(r"(\d+(?:\.\d+)*)")
+
+
+def _ver_tuple(value: Optional[str]) -> Optional[tuple[int, ...]]:
+    """
+    Convertit une chaîne de version en tuple d'entiers comparable.
+    Tolérant aux suffixes/formats : '4.7p1'→(4,7), '5.0.96-0ubuntu3'→(5,0,96),
+    '8.3.20 - 8.3.23'→(8,3,20), '9.4.2-P2.1'→(9,4,2), '2.2.8'→(2,2,8).
+    Retourne None si aucune version numérique exploitable.
+    """
+    if not value:
+        return None
+    m = _VER_RE.search(str(value).strip())
+    if not m:
+        return None
+    return tuple(int(x) for x in m.group(1).split("."))
+
+
+def _ver_cmp(a: tuple[int, ...], b: tuple[int, ...]) -> int:
+    """Compare deux tuples de version (padding par zéros). -1 / 0 / 1."""
+    n = max(len(a), len(b))
+    a = a + (0,) * (n - len(a))
+    b = b + (0,) * (n - len(b))
+    return (a > b) - (a < b)
+
+
+def _criteria_version(criteria: str) -> Optional[str]:
+    """Extrait le champ version du CPE de critère (2.2 ou 2.3)."""
+    if not criteria:
+        return None
+    if criteria.startswith("cpe:2.3:"):
+        parts = criteria.split(":")
+        # cpe:2.3:type:vendor:product:version:...
+        if len(parts) >= 6:
+            return parts[5]
+    elif criteria.startswith("cpe:/"):
+        parts = criteria[5:].split(":")
+        # a:vendor:product:version
+        if len(parts) >= 4:
+            return parts[3]
+    return None
+
+
+def _version_confirmed(detected: tuple[int, ...], vc: dict) -> bool:
+    """
+    Confirme que la version détectée est explicitement couverte par la
+    configuration NVD `vc` (champs versionStart*/versionEnd* + version du critère).
+
+    Règle anti-hallucination : en l'absence totale de contrainte de version
+    (critère '*'/'-' ET aucune borne), on REFUSE le rapprochement.
+    """
+    vsi = _ver_tuple(vc.get("vsi"))
+    vse = _ver_tuple(vc.get("vse"))
+    vei = _ver_tuple(vc.get("vei"))
+    vee = _ver_tuple(vc.get("vee"))
+
+    has_range = any(b is not None for b in (vsi, vse, vei, vee))
+    if has_range:
+        if vsi is not None and _ver_cmp(detected, vsi) < 0:
+            return False
+        if vse is not None and _ver_cmp(detected, vse) <= 0:
+            return False
+        if vei is not None and _ver_cmp(detected, vei) > 0:
+            return False
+        if vee is not None and _ver_cmp(detected, vee) >= 0:
+            return False
+        return True
+
+    # Pas de plage : on s'appuie sur la version exacte du critère.
+    crit = vc.get("crit_ver")
+    if crit in (None, "", "*", "-"):
+        # Aucune information de version → non confirmable → REFUS.
+        return False
+    crit_t = _ver_tuple(crit)
+    if crit_t is None:
+        return False
+    # Correspondance par préfixe : critère '2.2' couvre '2.2.8' détecté,
+    # mais '2.4.17' ne couvre PAS '2.2.8'.
+    n = len(crit_t)
+    det = detected + (0,) * (n - len(detected)) if len(detected) < n else detected
+    return det[:n] == crit_t
+
+
 # ─── CVE Data Extraction ──────────────────────────────────────────────────────
 
 def _extract_cvss(cve_data: dict) -> tuple[Optional[float], Optional[str]]:
@@ -136,7 +224,12 @@ def _build_index() -> dict[str, list[dict]]:
                                     "vector": vector,
                                     "cwe": _extract_cwe(cve_data),
                                     "description": _extract_description(cve_data),
-                                    "cpe_match": cpe_match,
+                                    # Contraintes de version (anti-hallucination).
+                                    "crit_ver": _criteria_version(criteria),
+                                    "vsi": cpe_match.get("versionStartIncluding"),
+                                    "vse": cpe_match.get("versionStartExcluding"),
+                                    "vei": cpe_match.get("versionEndIncluding"),
+                                    "vee": cpe_match.get("versionEndExcluding"),
                                 })
         except Exception as e:
             logger.warning("Erreur lors du parsing de %s : %s", fpath.name, e)
@@ -213,9 +306,18 @@ def enrich_service_vulns_from_cpe(session: Session) -> dict[str, int]:
             stats["found_cpe"] += 1
             vendor, product = parsed
             key = f"{vendor}:{product}"
-            matches = index.get(key, [])
+            candidates = index.get(key, [])
         else:
+            candidates = []
+
+        # 1bis. FILTRE ANTI-HALLUCINATION : ne garder que les CVE dont la plage
+        # de versions vulnérables couvre EXPLICITEMENT la version détectée.
+        # Sans version détectée, aucune CVE n'est associée (refus strict).
+        detected_ver = _ver_tuple(svc.version)
+        if detected_ver is None:
             matches = []
+        else:
+            matches = [e for e in candidates if _version_confirmed(detected_ver, e)]
 
         if matches:
             # 2. Créer des CVE-linked vulns pour ce service

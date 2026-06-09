@@ -1259,8 +1259,9 @@ async function llmGenerate(mode) {
     const respText = r.content_md || 'Pas de réponse.';
     loading.innerHTML = fmtMD(respText);
     
-    // Add to chat history
-    chatHistory.push({ role: 'assistant', content: respText });
+    // Ajouter un résumé court en history (pas le rapport complet qui ferait exploser le context window)
+    const v = vulns.find(x => x.id === selId);
+    chatHistory.push({ role: 'assistant', content: `[Rapport ${mode.toUpperCase()} généré pour ${v ? v.cve || 'ID#'+v.id : 'vuln#'+selId}. L'utilisateur peut poser des questions sur ce rapport.]` });
     
     log('LLM ' + mode + ' généré — vuln #' + selId, 'ok');
     logAudit('LLM ' + mode.toUpperCase() + ' — vuln #' + selId);

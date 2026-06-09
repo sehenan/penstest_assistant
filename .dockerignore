@@ -106,3 +106,16 @@ ssl/
 # Backup files
 *.bak
 *.backup
+
+# Large artifacts / non-source files (not needed in the image)
+Results.zip
+*.zip
+*.csv
+*.png
+scratch/
+outputs/
+.deepeval/
+.pytest_cache/
+train_model_corrige_1*.py
+generate_diagrams.py
+*.bat

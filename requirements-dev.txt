@@ -1,0 +1,21 @@
+# === SIATI — Dépendances de DÉVELOPPEMENT / TEST ===
+# Installe d'abord le runtime, puis les outils de qualité.
+-r requirements.txt
+
+# --- Tests ---
+pytest==8.3.4
+pytest-mock==3.14.0
+pytest-asyncio==0.25.2
+pytest-cov==6.0.0
+
+# --- Qualité de code ---
+black==24.10.0
+flake8==7.1.1
+mypy==1.14.1
+
+# --- Évaluation LLM (offline judge) ---
+deepeval==1.5.9
+anthropic==0.42.0
+
+# --- Dashboard Streamlit alternatif (hors chemin FastAPI) ---
+streamlit==1.58.0

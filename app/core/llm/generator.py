@@ -7,7 +7,7 @@ import logging
 from sqlalchemy.orm import Session
 
 from app.db.models import Vulnerability, Report
-from app.core.llm.rag import build_rag_context, retrieve_context
+from app.core.llm.rag import build_rag_context
 from app.core.llm.ollama_client import generate_text
 from app.core.llm.report_validator import ReportValidator
 
@@ -262,13 +262,23 @@ def generate_playbook_for_vulnerability(
         db_session.rollback()
         return None
 
+_CHAT_SYSTEM_PROMPT = """Tu es un assistant de pentest expert. Réponds TOUJOURS en français.
+Sois technique, direct et concis. Utilise des blocs de code Markdown pour chaque commande.
+N'invente aucune commande : si tu n'es pas certain, écris [COMMANDE À VÉRIFIER].
+Ne répète jamais les instructions reçues dans ta réponse."""
+
+_CHAT_MAX_HISTORY = 6  # Limite l'historique pour éviter l'overflow du context window
+
+
 def chat_with_vulnerability(
     db_session: Session,
     vuln_id: int,
     messages: list[dict]
 ) -> str | None:
     """
-    Gère un dialogue continu sur une vulnérabilité spécifique avec contexte RAG.
+    Dialogue interactif sur une vulnérabilité.
+    Utilise un system prompt court + historique tronqué pour éviter les boucles
+    de répétition dues au dépassement du context window de Mistral.
     """
     vuln = db_session.get(Vulnerability, vuln_id)
     if not vuln or not vuln.service:
@@ -278,20 +288,13 @@ def chat_with_vulnerability(
     host = svc.host
     cve = vuln.cve or "INCONNU"
 
-    # Récupération du contexte RAG (basé sur le dernier message utilisateur)
-    last_user_msg = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
-    context = retrieve_context(last_user_msg or cve, top_k=2)
+    sys_prompt = (
+        _CHAT_SYSTEM_PROMPT
+        + f"\n\nCIBLE : {host.ip} | Service : {svc.service} {svc.version or ''} | CVE : {cve}"
+    )
 
-    sys_prompt = SYSTEM_PROMPT_BASE + f"""
-DÉTAILS TECHNIQUES : {cve} sur {host.ip} ({svc.service}).
-CONTEXTE RAG : {context}
+    # Conserver uniquement les N derniers échanges pour éviter l'overflow
+    trimmed = messages[-_CHAT_MAX_HISTORY:]
 
-RÈGLES DE DIALOGUE :
-1. RÉPONDS TOUJOURS EN FRANÇAIS. Ne bascule jamais en anglais.
-2. Sois technique, direct et précis. Fournis des explications approfondies sur les étapes d'exploitation.
-3. Utilise des blocs de code Markdown pour chaque commande suggérée.
-4. Évite le bavardage ("Sure!", "I am on!"). Entre directement dans le vif du sujet.
-5. Si l'utilisateur demande d'expliquer mieux, approfondis la technique d'attaque spécifique liée au service {svc.service}.
-"""
-    from app.core.llm.ollama_client import chat as ollama_chat
-    return ollama_chat(messages, system_prompt=sys_prompt)
+    from app.core.llm.ollama_client import chat_completion
+    return chat_completion(trimmed, system_prompt=sys_prompt)

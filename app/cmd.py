@@ -2,6 +2,7 @@
 Points d'entrée CLI (Typer).
 Mappe les différentes phases (ingest, enrich, score, playbook) sur des commandes unifiées.
 """
+import os
 import sys
 import subprocess
 from pathlib import Path
@@ -204,13 +205,17 @@ def exploit(vuln_id: int):
 
 @app.command("ui")
 def ui(
-    host: str = typer.Option("127.0.0.1", "--host", help="Adresse d'écoute"),
-    port: int = typer.Option(8505, "--port", help="Port d'écoute"),
+    host: str = typer.Option(
+        os.environ.get("SIATI_HOST", "127.0.0.1"), "--host", help="Adresse d'écoute"
+    ),
+    port: int = typer.Option(
+        int(os.environ.get("SIATI_PORT", "8505")), "--port", help="Port d'écoute"
+    ),
 ):
     """[Phase 5] Démarre le Dashboard SIATI (FastAPI + HTML)."""
     typer.secho(f"--> Lancement de l'IHM SIATI sur http://{host}:{port}", fg=typer.colors.MAGENTA)
     server_module = "app.ui.server:app"
-    env = {**__import__("os").environ, "OMP_NUM_THREADS": "1"}
+    env = {**os.environ, "OMP_NUM_THREADS": "1"}
     subprocess.run([
         sys.executable, "-m", "uvicorn", server_module,
         "--host", host,

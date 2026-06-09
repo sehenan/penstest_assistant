@@ -34,16 +34,15 @@ def generate_text(prompt: str, system_prompt: str = "") -> str | None:
 
 def chat(messages: list[dict], system_prompt: str = "") -> str | None:
     """
-    Utilise l'endpoint /api/chat pour maintenir un contexte de conversation.
-    messages: Liste de dict {"role": "user/assistant", "content": "..."}
+    Génération longue (playbook, rapport).
+    Température basse, num_predict élevé pour des rapports complets.
     """
     url = f"{OLLAMA_HOST}/api/chat"
-    
+
     if not check_ollama_status():
         logger.error("Serveur Ollama inaccessible.")
         return None
 
-    # Injection du system prompt comme premier message si fourni
     full_messages = []
     if system_prompt:
         full_messages.append({"role": "system", "content": system_prompt})
@@ -62,11 +61,50 @@ def chat(messages: list[dict], system_prompt: str = "") -> str | None:
             "stop": ["Introduction:", "Overview:", "Bibliography:"]
         }
     }
-    
+
     try:
         r = requests.post(url, json=payload, timeout=OLLAMA_TIMEOUT)
         r.raise_for_status()
         return r.json().get("message", {}).get("content", "")
     except Exception as e:
         logger.error("Erreur Chat Ollama: %s", e)
+        return None
+
+
+def chat_completion(messages: list[dict], system_prompt: str = "") -> str | None:
+    """
+    Dialogue interactif (questions/réponses).
+    Température plus élevée et num_predict limité pour éviter les boucles de répétition
+    quand le contexte (historique + system prompt) est long.
+    """
+    url = f"{OLLAMA_HOST}/api/chat"
+
+    if not check_ollama_status():
+        logger.error("Serveur Ollama inaccessible.")
+        return None
+
+    full_messages = []
+    if system_prompt:
+        full_messages.append({"role": "system", "content": system_prompt})
+    full_messages.extend(messages)
+
+    payload = {
+        "model": OLLAMA_MODEL,
+        "messages": full_messages,
+        "stream": False,
+        "options": {
+            "temperature": 0.4,
+            "num_predict": 800,
+            "repeat_penalty": 1.3,
+            "top_p": 0.9,
+            "top_k": 40,
+        }
+    }
+
+    try:
+        r = requests.post(url, json=payload, timeout=OLLAMA_TIMEOUT)
+        r.raise_for_status()
+        return r.json().get("message", {}).get("content", "")
+    except Exception as e:
+        logger.error("Erreur Chat Completion Ollama: %s", e)
         return None

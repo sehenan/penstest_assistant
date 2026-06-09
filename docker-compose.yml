@@ -1,39 +1,61 @@
-version: '3.8'
+# ==============================================================================
+# SIATI — Orchestration Docker Compose
+#   - siati        : application FastAPI (UI + API)
+#   - ollama       : serveur LLM local
+#   - ollama-init  : tâche unique qui télécharge le modèle (1er démarrage)
+#   - redis        : cache / rate-limiting (optionnel, fallback mémoire)
+#
+# Démarrage :  docker compose up -d --build
+# (Le 1er lancement télécharge le modèle Ollama ~4 Go : patienter.)
+# ==============================================================================
 
 services:
-  # Main SIATI Application
+  # ---------------------------------------------------------------------------
+  # Application principale SIATI
+  # ---------------------------------------------------------------------------
   siati:
     build:
       context: .
       dockerfile: Dockerfile
+    image: siati:latest
     container_name: siati-app
     ports:
       - "8505:8505"
     environment:
-      - PYTHONUNBUFFERED=1
-      - SIATI_DB_PATH=/app/data/pentest.db
-      - SIATI_LOG_LEVEL=INFO
-      - OLLAMA_HOST=http://ollama:11434
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+      SIATI_HOST: 0.0.0.0
+      SIATI_PORT: "8505"
+      PENTEST_DB_URL: sqlite:////app/data/pentest.db
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: mistral:7b-instruct-q4_K_M
+      OLLAMA_TIMEOUT: "1800"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
     volumes:
+      # Données persistantes (BDD SQLite, FAISS, intel, modèle ML, base de connaissance)
       - ./data:/app/data
       - ./logs:/app/logs
-      - ./config.yaml:/app/config.yaml
+      # Surcharge de configuration sans rebuild (paramètres RAG, etc.)
+      - ./config.yaml:/app/config.yaml:ro
     depends_on:
-      - ollama
-      - redis
+      ollama:
+        condition: service_healthy
+      ollama-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - siati-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8505/api/stats"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:8505/api/stats"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
 
-  # Ollama LLM Service
+  # ---------------------------------------------------------------------------
+  # Serveur LLM Ollama
+  # ---------------------------------------------------------------------------
   ollama:
     image: ollama/ollama:latest
     container_name: siati-ollama
@@ -41,27 +63,43 @@ services:
       - "11434:11434"
     volumes:
       - ollama-data:/root/.ollama
-    environment:
-      - OLLAMA_HOST=0.0.0.0
     restart: unless-stopped
     networks:
       - siati-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
-      interval: 30s
+      # L'image ollama ne contient pas curl ; on utilise la CLI intégrée.
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
       timeout: 10s
-      retries: 3
-      start_period: 60s
+      retries: 5
+      start_period: 30s
 
-  # Redis for caching and rate limiting
+  # ---------------------------------------------------------------------------
+  # Initialisation : télécharge le modèle puis s'arrête.
+  # ---------------------------------------------------------------------------
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: siati-ollama-init
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["ollama pull mistral:7b-instruct-q4_K_M"]
+    restart: "no"
+    networks:
+      - siati-network
+
+  # ---------------------------------------------------------------------------
+  # Cache Redis (rate-limiting + cache applicatif)
+  # ---------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
     container_name: siati-redis
-    ports:
-      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis-data:/data
-    command: redis-server --appendonly yes
     restart: unless-stopped
     networks:
       - siati-network

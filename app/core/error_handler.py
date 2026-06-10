@@ -11,19 +11,26 @@ import json
 import os
 from pathlib import Path
 
-# Ensure logs directory exists (absolute path relative to project root)
-_PROJECT_ROOT = Path(__file__).resolve().parents[3]
-_LOGS_DIR = _PROJECT_ROOT / "logs"
-os.makedirs(_LOGS_DIR, exist_ok=True)
+# Répertoire de logs : surcharge via SIATI_LOGS_DIR, sinon <racine_projet>/logs.
+# parents[2] = racine du dépôt (.../penstest_assistant en dev, /app en conteneur),
+# pas parents[3] qui pointait un cran trop haut (/ en conteneur -> non inscriptible).
+_DEFAULT_LOGS_DIR = Path(__file__).resolve().parents[2] / "logs"
+_LOGS_DIR = Path(os.environ.get("SIATI_LOGS_DIR", _DEFAULT_LOGS_DIR))
+
+# Repli gracieux : si le dossier n'est pas inscriptible (FS read-only, droits),
+# on bascule sur la console uniquement plutôt que de faire échouer l'import.
+_log_handlers = [logging.StreamHandler()]
+try:
+    os.makedirs(_LOGS_DIR, exist_ok=True)
+    _log_handlers.insert(0, logging.FileHandler(str(_LOGS_DIR / 'app.log')))
+except OSError:
+    pass
 
 # Configure structured logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(str(_LOGS_DIR / 'app.log')),
-        logging.StreamHandler()
-    ]
+    handlers=_log_handlers
 )
 
 logger = logging.getLogger(__name__)

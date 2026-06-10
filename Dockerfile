@@ -16,12 +16,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Dépendances système nécessaires à la COMPILATION de certaines roues.
+#   - pkg-config + libcairo2-dev : requis pour compiler pycairo
+#     (tiré par xhtml2pdf -> svglib -> rlpycairo pour l'export PDF des rapports).
 RUN apt-get update && apt-get install -y --no-install-recommends \
         gcc \
         g++ \
         make \
         libffi-dev \
         libssl-dev \
+        pkg-config \
+        libcairo2-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Environnement virtuel dédié, copié tel quel dans l'image finale.
@@ -49,9 +53,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     # Cache HuggingFace : modèle d'embedding pré-téléchargé à la construction.
     HF_HOME=/opt/hf_cache
 
-# curl : requis uniquement par le HEALTHCHECK.
+# curl     : requis par le HEALTHCHECK.
+# libcairo2 : lib runtime chargée par pycairo (export PDF via xhtml2pdf/svglib).
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
+        libcairo2 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

@@ -1,0 +1,39 @@
+# Normalisation des fins de ligne — garantit que les fichiers consommés par
+# l'image Docker (Linux) restent en LF, même clonés sous Windows (autocrlf=true).
+# Sans cela, un checkout Windows peut injecter des CRLF qui cassent les scripts
+# et fichiers de config lus dans le conteneur.
+
+# Par défaut : git normalise en LF dans le dépôt, restitue selon la plateforme.
+* text=auto eol=lf
+
+# Fichiers qui DOIVENT rester en LF (lus tels quels dans le conteneur Linux).
+*.sh         text eol=lf
+*.py         text eol=lf
+*.yaml       text eol=lf
+*.yml        text eol=lf
+*.toml       text eol=lf
+*.cfg        text eol=lf
+*.ini        text eol=lf
+*.txt        text eol=lf
+*.md         text eol=lf
+*.json       text eol=lf
+*.html       text eol=lf
+*.css        text eol=lf
+*.js         text eol=lf
+Dockerfile   text eol=lf
+.dockerignore text eol=lf
+.gitignore   text eol=lf
+
+# Fichiers binaires : jamais de conversion de fin de ligne.
+*.db         binary
+*.joblib     binary
+*.index      binary
+*.zip        binary
+*.gz         binary
+*.png        binary
+*.jpg        binary
+*.jpeg       binary
+*.ico        binary
+*.pdf        binary
+*.nessus     -text
+*.xml        text eol=lf

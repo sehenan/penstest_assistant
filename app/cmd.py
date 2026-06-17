@@ -332,6 +332,80 @@ def deepeval_evaluate(
     except Exception as e:
         typer.secho(f"Erreur durant l'évaluation : {e}", fg=typer.colors.RED)
 
+@app.command("sync-intel")
+def sync_intel():
+    """[Phase Air-Gap] Importe automatiquement le dernier bundle d'enrichissement (Threat Intel)."""
+    try:
+        from app.core.enrichment.sync_manager import ingest_bundle
+        import glob
+        import os
+        
+        # Chercher dans les répertoires probables
+        search_paths = [
+            "siati_intel_builder/bundles/*.tar.gz",
+            "bundles/*.tar.gz",
+            "data/bundles/*.tar.gz"
+        ]
+        
+        latest_bundle = None
+        latest_time = 0
+        
+        for pattern in search_paths:
+            for file in glob.glob(pattern):
+                mtime = os.path.getmtime(file)
+                if mtime > latest_time:
+                    latest_time = mtime
+                    latest_bundle = file
+                    
+        if not latest_bundle:
+            typer.secho("Aucun bundle (.tar.gz) trouvé dans les dossiers standards.", fg=typer.colors.RED)
+            raise typer.Exit(1)
+            
+        typer.secho(f"--> Bundle le plus récent trouvé : {latest_bundle}", fg=typer.colors.BLUE)
+        typer.secho("--> Lancement du Sync Manager (Vérification SHA256 + Hot-swap)...", fg=typer.colors.BLUE)
+        
+        success = ingest_bundle(latest_bundle)
+        if success:
+            typer.secho("[+] Base de Threat Intelligence mise à jour avec succès (Air-Gap) !", fg=typer.colors.GREEN)
+        else:
+            typer.secho("[-] Échec de la mise à jour (Vérifiez les logs).", fg=typer.colors.RED)
+            raise typer.Exit(1)
+    except Exception as e:
+        typer.secho(f"Erreur : {e}", fg=typer.colors.RED)
+
+@app.command("rollback-intel")
+def rollback_intel():
+    """Restaure la version précédente de la base d'enrichissement en cas d'erreur."""
+    try:
+        from app.core.enrichment.sync_manager import rollback_to_version, VERSIONS_FILE
+        import json
+        
+        if not VERSIONS_FILE.exists():
+            typer.secho("Aucun historique de version trouvé.", fg=typer.colors.RED)
+            raise typer.Exit(1)
+            
+        with open(VERSIONS_FILE, "r", encoding="utf-8") as f:
+            versions = json.load(f)
+            
+        history = versions.get("history", [])
+        if not history:
+            typer.secho("Aucun backup disponible pour le rollback.", fg=typer.colors.RED)
+            raise typer.Exit(1)
+            
+        last_backup = history[-1]
+        backup_path = last_backup.get("backup_path")
+        import os
+        backup_name = os.path.basename(backup_path)
+        
+        typer.secho(f"--> Restauration depuis le backup : {backup_name}", fg=typer.colors.BLUE)
+        success = rollback_to_version(backup_name)
+        
+        if success:
+            typer.secho("[+] Rollback réussi ! SIATI utilise l'ancienne base.", fg=typer.colors.GREEN)
+        else:
+            typer.secho("[-] Échec du rollback.", fg=typer.colors.RED)
+    except Exception as e:
+        typer.secho(f"Erreur : {e}", fg=typer.colors.RED)
+
 if __name__ == "__main__":
     app()
-

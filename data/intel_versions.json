@@ -1,4 +1,10 @@
 {
     "active_version": "v20260601_100501",
-    "history": []
+    "history": [
+        {
+            "version": "v20260601_100501",
+            "backup_path": "data\\intel_backups\\threat_intel_v20260601_100501_20260617150633.db",
+            "replaced_at": "2026-06-17T15:06:33.467188"
+        }
+    ]
 }

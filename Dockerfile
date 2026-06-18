@@ -85,7 +85,7 @@ ENV SIATI_HOST=0.0.0.0 \
     SIATI_PORT=8505 \
     PENTEST_DB_URL=sqlite:////app/data/pentest.db \
     OLLAMA_HOST=http://127.0.0.1:11434 \
-    OLLAMA_MODEL=mistral:7b-instruct-q4_K_M \
+    OLLAMA_MODEL=llama3 \
     # Air-gap strict : interdit toute résolution réseau HuggingFace au runtime.
     HF_HUB_OFFLINE=1 \
     TRANSFORMERS_OFFLINE=1 \

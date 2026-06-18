@@ -11,9 +11,9 @@ logger = logging.getLogger(__name__)
 # Config Air-Gap : L'API réside sur le localhost par défaut.
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 
-# Modèle par défaut : mistral. Mistral est souvent plus rapide sur CPU.
-# Remplacement par mistral.
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "mistral:7b-instruct-q4_K_M")
+# Modèle par défaut : llama3 (mistral a été retiré du socle). Surcharge possible
+# via l'env OLLAMA_MODEL (positionné par docker-compose / config de déploiement).
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3")
 OLLAMA_TIMEOUT = int(os.environ.get("OLLAMA_TIMEOUT", "1800"))
 
 

@@ -9,11 +9,81 @@ from sqlalchemy.orm import Session
 from app.db.models import Vulnerability, Report
 from app.core.llm.rag import build_rag_context
 from app.core.llm.ollama_client import generate_text
-from app.core.llm.report_validator import ReportValidator
+from app.core.llm.report_validator import ReportValidator, COMPLETION_MARKER
 
 logger = logging.getLogger(__name__)
 
 from typing import Literal
+
+# --- Garde-fou déterministe dérivé du vecteur CVSS ---
+# Mots-clés trahissant un RCE / une exfiltration / une élévation de privilège.
+# Utilisés à la fois pour interdire (prompt) et détecter (validateur) une sortie
+# incohérente avec l'impact réel déclaré par le CVSS.
+RCE_EXFIL_KEYWORDS: list[str] = [
+    "reverse shell", "reverse_tcp", "meterpreter", "bind shell", "bindshell",
+    "/etc/passwd", "/etc/shadow", "exécution de code", "code execution",
+    "remote code execution", " rce", "exfiltrat", "élévation de privilège",
+    "privilege escalation", "lecture de fichier", "lecture du fichier",
+    "exécuter une commande", "cmd/unix", "shell distant",
+]
+
+
+def _cvss_metric(vector: str, metric: str) -> str | None:
+    """Extrait la valeur d'une métrique (C, I, A) d'un vecteur CVSS v2/v3."""
+    if not vector:
+        return None
+    for part in vector.split("/"):
+        if ":" in part:
+            k, _, v = part.partition(":")
+            if k.strip().upper() == metric.upper():
+                return v.strip().upper()
+    return None
+
+
+def cvss_impact_profile(vector: str) -> dict:
+    """
+    Dérive du vecteur CVSS un profil d'impact exploitable comme garde-fou.
+    Renvoie {conf, integ, avail (bool), constraint (str), forbid (bool)}.
+    `forbid` = True si la faille n'a NI impact confidentialité NI intégrité
+    (donc tout RCE / lecture-fichier / élévation décrits seraient une hallucination).
+    """
+    none_vals = {"N", None}  # 'N' = None en v3 ET v2
+    conf = _cvss_metric(vector, "C") not in none_vals
+    integ = _cvss_metric(vector, "I") not in none_vals
+    avail = _cvss_metric(vector, "A") not in none_vals
+
+    impacts = []
+    if conf:
+        impacts.append("divulgation d'information (confidentialité)")
+    if integ:
+        impacts.append("altération de données / exécution (intégrité)")
+    if avail:
+        impacts.append("indisponibilité du service (déni de service)")
+
+    if not vector or not (conf or integ or avail):
+        return {"conf": conf, "integ": integ, "avail": avail,
+                "constraint": "", "forbid": False}
+
+    lines = [
+        "## CONTRAINTE D'IMPACT — VECTEUR CVSS (NON NÉGOCIABLE)",
+        f"Le vecteur `{vector}` établit que l'impact réel et démontrable se limite à : "
+        + ", ".join(impacts) + ".",
+    ]
+    forbid = not conf and not integ
+    if forbid:
+        lines.append(
+            "INTERDIT ABSOLU : cette faille n'est NI un RCE NI un accès aux données. "
+            "Ne décris AUCUN reverse shell, meterpreter, exécution de code, lecture de "
+            "/etc/passwd, ni élévation de privilège — ce serait une hallucination."
+        )
+        if avail:
+            lines.append(
+                "L'UNIQUE impact à démontrer est un DÉNI DE SERVICE : la preuve = le "
+                "service devient indisponible / le processus crashe, rien d'autre."
+            )
+    return {"conf": conf, "integ": integ, "avail": avail,
+            "constraint": "\n".join(lines), "forbid": forbid}
+
 
 # --- Prompts Spécifiques ---
 
@@ -168,6 +238,10 @@ def generate_playbook_for_vulnerability(
     kev_flag = "⚠️ OUI — activement exploité dans la nature (CISA KEV)" if vuln.is_kev else "Non"
     epss_str = f"{vuln.epss_score:.4f} ({vuln.epss_score*100:.1f}% probabilité d'exploitation à 30j)" if vuln.epss_score else "N/A"
 
+    # 3bis. Garde-fou d'impact dérivé du CVSS (empêche l'hallucination RCE sur un DoS, etc.)
+    impact = cvss_impact_profile(vuln.cvss_vector or "")
+    cvss_constraint_block = f"\n{impact['constraint']}\n" if impact["constraint"] else ""
+
     # 4. Composition du Prompt Métier
     user_prompt = f"""
 ## FICHE CIBLE
@@ -187,7 +261,7 @@ def generate_playbook_for_vulnerability(
 
 ## DESCRIPTION DE LA VULNÉRABILITÉ
 {vuln.description or 'Aucune description disponible dans la base locale.'}
-
+{cvss_constraint_block}
 ## CONTEXTE KNOWLEDGE BASE (RAG)
 {context if context else 'Aucun document RAG disponible pour ce CVE.'}
 
@@ -205,12 +279,13 @@ def generate_playbook_for_vulnerability(
         logger.error("Défaut de réponse de l'LLM.")
         return None
         
-    # 6. Validation post-génération (hallucinations, troncature, cohérence CVE)
+    # 6. Validation post-génération (hallucinations, troncature, cohérence CVE, impact CVSS)
     validation = ReportValidator().validate(
         report=generated_md,
         cve_id=cve,
         service=svc.service,
         version=svc.version or "",
+        cvss_vector=vuln.cvss_vector or "",
     )
     is_valid = validation["valid"]
     if not is_valid:
@@ -219,6 +294,28 @@ def generate_playbook_for_vulnerability(
         status_tag = " [VALIDATION ÉCHOUÉE]"
     else:
         status_tag = ""
+
+    # 6bis. BLOCAGE des contradictions dures : si le CVSS exclut tout RCE/accès
+    # données mais que le LLM décrit malgré tout une exploitation de ce type,
+    # on REMPLACE le contenu halluciné par un refus motivé (pas un simple tag).
+    hard_codes = {"CVE_IMPACT_CONTRADICTION"}
+    hard_issues = [i for i in validation["issues"] if i["code"] in hard_codes]
+    if hard_issues:
+        details = "\n".join(f"> - {i['detail']}" for i in hard_issues)
+        generated_md = (
+            "> [!CAUTION]\n"
+            "> **CONTENU BLOQUÉ — incohérence prouvée avec l'impact CVSS.**\n"
+            f"> Le modèle a décrit une exploitation incompatible avec le vecteur "
+            f"`{vuln.cvss_vector}` de {cve}. Sortie écartée pour éviter une hallucination.\n"
+            f"{details}\n\n"
+            "## Faits vérifiés (base locale)\n"
+            f"- **CVE** : {cve}\n"
+            f"- **Service** : {svc.service} {svc.version or ''} sur {host.ip}:{svc.port}\n"
+            f"- **Impact CVSS réel** : {', '.join(k for k,v in (('confidentialité',impact['conf']),('intégrité',impact['integ']),('disponibilité',impact['avail'])) if v) or 'non spécifié'}\n"
+            f"- **Description** : {vuln.description or 'Indisponible dans la base locale.'}\n\n"
+            f"{COMPLETION_MARKER}\n"
+        )
+        logger.warning("⛔ Contenu LLM bloqué pour %s (contradiction d'impact CVSS).", cve)
 
     # 7. Gestion du Rapport (UPSERT)
     from datetime import datetime
@@ -265,6 +362,10 @@ def generate_playbook_for_vulnerability(
 _CHAT_SYSTEM_PROMPT = """Tu es un assistant de pentest expert. Réponds TOUJOURS en français.
 Sois technique, direct et concis. Utilise des blocs de code Markdown pour chaque commande.
 N'invente aucune commande : si tu n'es pas certain, écris [COMMANDE À VÉRIFIER].
+Tu réponds UNIQUEMENT à partir du CONTEXTE ci-dessous. Si l'information n'y est pas,
+écris « Information non disponible dans la base locale SIATI » — ne suppose jamais.
+Ne contredis jamais la nature réelle de la faille décrite dans le CONTEXTE
+(ex. ne décris pas un RCE/reverse shell pour une faille de déni de service).
 Ne répète jamais les instructions reçues dans ta réponse."""
 
 _CHAT_MAX_HISTORY = 6  # Limite l'historique pour éviter l'overflow du context window
@@ -288,9 +389,19 @@ def chat_with_vulnerability(
     host = svc.host
     cve = vuln.cve or "INCONNU"
 
+    # Grounding : mêmes faits vérifiés que le playbook (description + CVSS + RAG),
+    # sinon le chat répond à l'aveugle et hallucine la nature de la faille.
+    impact = cvss_impact_profile(vuln.cvss_vector or "")
+    rag = build_rag_context(service=svc.service, version=svc.version or "", cve_id=cve, top_k=3)
     sys_prompt = (
         _CHAT_SYSTEM_PROMPT
-        + f"\n\nCIBLE : {host.ip} | Service : {svc.service} {svc.version or ''} | CVE : {cve}"
+        + "\n\n## CONTEXTE (faits vérifiés — base locale)\n"
+        + f"- Cible : {host.ip}:{svc.port}/{svc.protocol}\n"
+        + f"- Service : {svc.service} {svc.version or ''}\n"
+        + f"- CVE : {cve} | CVSS : {vuln.cvss_score or 'N/A'} ({vuln.cvss_vector or 'N/A'})\n"
+        + f"- Description : {vuln.description or 'Indisponible dans la base locale.'}\n"
+        + (f"\n{impact['constraint']}\n" if impact["constraint"] else "")
+        + (f"\n## CONNAISSANCE (RAG)\n{rag}\n" if rag else "")
     )
 
     # Conserver uniquement les N derniers échanges pour éviter l'overflow

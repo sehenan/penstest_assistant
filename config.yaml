@@ -20,7 +20,7 @@ rag:
 # Paramètres LLM (Ollama)
 llm:
   ollama_url: "http://localhost:11434"
-  model: "mistral"  # mistral, llama3, phi3, etc.
+  model: "llama3"  # mistral, llama3, phi3, etc.
   timeout_seconds: 120
   max_tokens: 2048
   temperature: 0.1  # Basse pour limiter l'hallucination

@@ -26,7 +26,7 @@ services:
       SIATI_PORT: "8505"
       PENTEST_DB_URL: sqlite:////app/data/pentest.db
       OLLAMA_HOST: http://ollama:11434
-      OLLAMA_MODEL: mistral:7b-instruct-q4_K_M
+      OLLAMA_MODEL: llama3
       OLLAMA_TIMEOUT: "1800"
       REDIS_HOST: redis
       REDIS_PORT: "6379"
@@ -86,7 +86,7 @@ services:
     environment:
       OLLAMA_HOST: http://ollama:11434
     entrypoint: ["/bin/sh", "-c"]
-    command: ["ollama pull mistral:7b-instruct-q4_K_M"]
+    command: ["ollama pull llama3"]
     restart: "no"
     networks:
       - siati-network

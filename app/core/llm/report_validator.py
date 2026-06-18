@@ -50,12 +50,15 @@ class ReportValidator:
     def __init__(self):
         self._intel = IntelReader()
 
-    def validate(self, report: str, cve_id: str, service: str, version: str) -> dict:
+    def validate(self, report: str, cve_id: str, service: str, version: str,
+                 cvss_vector: str = "") -> dict:
         """
         Retourne un dict :
           - valid (bool)  : True si aucun problème détecté
           - issues (list) : liste de dicts {code, detail}
           - report (str)  : rapport original (non modifié)
+        Si `cvss_vector` est fourni et exclut tout impact confidentialité/intégrité,
+        toute description de RCE/exfiltration est signalée (CVE_IMPACT_CONTRADICTION).
         """
         issues: list[dict] = []
 
@@ -96,11 +99,43 @@ class ReportValidator:
                 ),
             })
 
+        # 5. Contradiction avec l'impact CVSS (RCE/exfil décrit sur une faille sans
+        #    impact confidentialité ni intégrité — typiquement un DoS).
+        found = self._impact_contradiction(cvss_vector, report)
+        if found:
+            issues.append({
+                "code": "CVE_IMPACT_CONTRADICTION",
+                "detail": (
+                    f"Vecteur CVSS `{cvss_vector}` sans impact confidentialité/intégrité, "
+                    f"mais le rapport décrit une exploitation de type RCE/accès : {found!r}. "
+                    "Incohérence prouvée — contenu écarté."
+                ),
+            })
+
         return {
             "valid": len(issues) == 0,
             "issues": issues,
             "report": report,
         }
+
+    @staticmethod
+    def _impact_contradiction(cvss_vector: str, report: str) -> str | None:
+        """
+        Si le CVSS n'a NI impact confidentialité NI intégrité (C:N et I:N),
+        toute mention de RCE / reverse shell / lecture de fichier / élévation
+        est une hallucination. Renvoie le 1er mot-clé fautif trouvé, sinon None.
+        """
+        if not cvss_vector:
+            return None
+        from app.core.llm.generator import cvss_impact_profile, RCE_EXFIL_KEYWORDS
+        profile = cvss_impact_profile(cvss_vector)
+        if not profile["forbid"]:
+            return None
+        report_lower = report.lower()
+        for kw in RCE_EXFIL_KEYWORDS:
+            if kw in report_lower:
+                return kw.strip()
+        return None
 
     def _cve_consistent(self, cve_id: str, report: str) -> bool:
         """

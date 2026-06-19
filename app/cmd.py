@@ -222,30 +222,64 @@ def ui(
         "--port", str(port),
     ], env=env)
 
+def _chunk_markdown(text: str, size: int = 400, overlap: int = 50) -> list[str]:
+    """Découpe un document en chunks de ~size mots avec recouvrement (overlap)."""
+    words = text.split()
+    if not words:
+        return []
+    step = max(1, size - overlap)
+    chunks = []
+    for i in range(0, len(words), step):
+        chunks.append(" ".join(words[i:i + size]))
+        if i + size >= len(words):
+            break
+    return chunks
+
+
 @app.command("index-rag")
-def index_rag(knowledge_dir: str = "data/knowledge"):
-    """[Phase 4a] Indexe les fichiers Markdown de la base de connaissance dans FAISS."""
+def index_rag(knowledge_dir: str = "data/knowledge_base"):
+    """[Phase 4a] Indexe (récursivement + chunking) la base de connaissance Markdown dans FAISS (SBERT)."""
     typer.secho(f"--> Indexation RAG depuis {knowledge_dir}...", fg=typer.colors.BLUE)
     from app.core.llm.rag import build_index
     path = Path(knowledge_dir)
     if not path.is_dir():
         typer.secho(f"Dossier inexistant : {path}", fg=typer.colors.RED)
         raise typer.Exit(code=1)
-        
+
+    # Parcours récursif de la grande base + cheatsheets curées historiques (data/knowledge)
+    files = sorted(path.rglob("*.md"))
+    legacy = Path("data/knowledge")
+    if legacy.is_dir() and legacy.resolve() != path.resolve():
+        files += sorted(legacy.glob("*.md"))
+
     docs = []
-    for f in path.glob("*.md"):
+    for f in files:
         try:
-            content = f.read_text(encoding="utf-8")
-            docs.append({"content": content, "source": f.name})
+            content = f.read_text(encoding="utf-8").strip()
         except Exception as e:
             typer.secho(f"Erreur lecture {f.name}: {e}", fg=typer.colors.YELLOW)
-        
+            continue
+        if not content:
+            continue
+        try:
+            source = str(f.relative_to(path))
+        except ValueError:
+            source = f.name
+        for chunk in _chunk_markdown(content):
+            if chunk.strip():
+                docs.append({"content": chunk, "source": source})
+
     if not docs:
-        typer.secho("Aucun fichier .md trouvé.", fg=typer.colors.YELLOW)
+        typer.secho("Aucun chunk à indexer.", fg=typer.colors.YELLOW)
         return
-        
+
+    typer.secho(
+        f"--> {len(files)} fichiers -> {len(docs)} chunks. Encodage SBERT en cours "
+        f"(plusieurs minutes, CPU)...",
+        fg=typer.colors.BLUE,
+    )
     build_index(docs)
-    typer.secho(f"Succès | {len(docs)} documents indexés.", fg=typer.colors.GREEN)
+    typer.secho(f"Succès | {len(docs)} chunks indexés depuis {len(files)} fichiers.", fg=typer.colors.GREEN)
 
 @app.command("index-rag-v2")
 def index_rag_v2():

@@ -217,15 +217,7 @@ def generate_playbook_for_vulnerability(
         sys_prompt = SYSTEM_PROMPT_BASE + PAYLOAD_PROMPT_EXTENSION
         titre_prefix = "EXPLOITATION"
 
-    # 2. Contexte RAG vérifié (confirmation CVE ↔ service/version)
-    context = build_rag_context(
-        service=svc.service,
-        version=svc.version or "",
-        cve_id=cve,
-        top_k=3,
-    )
-    
-    # 3. Enrichissement exploit
+    # 2. Enrichissement exploit (avant RAG pour enrichir la requête vectorielle)
     from app.db.models import Exploit as ExploitModel
     exploit = db_session.query(ExploitModel).filter(ExploitModel.cve == cve).first()
     exploit_info = ""
@@ -234,6 +226,22 @@ def generate_playbook_for_vulnerability(
         exploit_info = f"✅ Exploit public disponible{msf}"
     else:
         exploit_info = "Aucun exploit public référencé"
+
+    # Requête RAG enrichie : description + module MSF si description absente
+    _rag_desc = vuln.description or ""
+    if not _rag_desc and exploit and exploit.metasploit_module:
+        # Ex: "exploit/multi/http/struts2_content_type_ognl" donne un signal sémantique
+        # fort même sans description NVD
+        _rag_desc = exploit.metasploit_module.replace("/", " ").replace("_", " ")
+
+    # 3. Contexte RAG
+    context = build_rag_context(
+        service=svc.service,
+        version=svc.version or "",
+        cve_id=cve,
+        top_k=3,
+        description=_rag_desc,
+    )
 
     kev_flag = "⚠️ OUI — activement exploité dans la nature (CISA KEV)" if vuln.is_kev else "Non"
     epss_str = f"{vuln.epss_score:.4f} ({vuln.epss_score*100:.1f}% probabilité d'exploitation à 30j)" if vuln.epss_score else "N/A"
@@ -392,7 +400,14 @@ def chat_with_vulnerability(
     # Grounding : mêmes faits vérifiés que le playbook (description + CVSS + RAG),
     # sinon le chat répond à l'aveugle et hallucine la nature de la faille.
     impact = cvss_impact_profile(vuln.cvss_vector or "")
-    rag = build_rag_context(service=svc.service, version=svc.version or "", cve_id=cve, top_k=3)
+    # Enrichir la requête RAG avec le module MSF si description absente
+    from app.db.models import Exploit as ExploitModel
+    _exploit_chat = db_session.query(ExploitModel).filter(ExploitModel.cve == cve).first()
+    _chat_desc = vuln.description or ""
+    if not _chat_desc and _exploit_chat and _exploit_chat.metasploit_module:
+        _chat_desc = _exploit_chat.metasploit_module.replace("/", " ").replace("_", " ")
+    rag = build_rag_context(service=svc.service, version=svc.version or "", cve_id=cve, top_k=3,
+                            description=_chat_desc)
     sys_prompt = (
         _CHAT_SYSTEM_PROMPT
         + "\n\n## CONTEXTE (faits vérifiés — base locale)\n"

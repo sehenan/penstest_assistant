@@ -67,31 +67,45 @@ def build_index(documents: list[dict[str, str]]) -> None:
     logger.info("Index FAISS sauvegardé avec succès dans %s", FAISS_DB_DIR)
 
 
-def build_rag_context(service: str, version: str, cve_id: str, top_k: int = 3) -> str:
+def build_rag_context(service: str, version: str, cve_id: str, top_k: int = 3,
+                      description: str = "") -> str:
     """
     Construit le contexte injecté dans le prompt Ollama.
     Ne contient QUE des données confirmées par la base locale intel.
     Si la CVE n'est pas confirmée pour ce service/version, retourne un avertissement
     qui instruira le modèle de ne pas décrire d'exploitation.
+    `description` enrichit la requête vectorielle (mots-clés du mécanisme de la faille)
+    pour une récupération FAISS nettement plus pertinente.
     """
-    from app.db.intel_reader import IntelReader, NO_CVE_CONFIRMED
+    from app.db.intel_reader import IntelReader
     intel = IntelReader()
+
+    # Requête vectorielle enrichie : CVE + service + version + mécanisme (description)
+    faiss_query = f"{cve_id} {service} {version} {(description or '')[:300]}".strip()
 
     cve_entry = intel.get_cve(cve_id)
     confirmed_cves = intel.get_cves_for_service(service, version)
     cve_confirmed = any(c["cve_id"] == cve_id for c in confirmed_cves)
 
     if not cve_confirmed and cve_entry is None:
-        warning = (
-            f"AVERTISSEMENT : {cve_id} n'est pas confirmée dans la base locale "
-            f"pour {service} {version}.\n"
-            "Le rapport ne doit pas décrire d'exploitation pour cette combinaison.\n"
-            f"{NO_CVE_CONFIRMED}"
+        # Pas de fiche dédiée dans l'intel base curée, MAIS la knowledge_base FAISS
+        # contient des techniques génériques exploitables. On les remonte au lieu de
+        # renvoyer un « exploitation impossible » sec. Le garde-fou anti-hallucination
+        # reste : ne pas inventer le mapping version↔CVE ni des détails CVE absents.
+        faiss_chunks = retrieve_context(faiss_query, top_k=top_k)
+        note = (
+            f"NOTE : {cve_id} n'a pas de fiche dédiée dans l'intel base locale pour "
+            f"{service} {version}. N'invente NI mapping version↔CVE NI détail de la CVE "
+            f"absent du prompt. Appuie-toi sur la description fournie et la documentation "
+            f"technique ci-dessous."
         )
-        faiss_chunks = retrieve_context(f"{cve_id} {service} {version}", top_k=top_k)
         if faiss_chunks:
-            return warning + "\n\nDocumentation technique (base locale FAISS) :\n" + faiss_chunks
-        return warning
+            return note + "\n\n## Documentation technique (base locale FAISS)\n" + faiss_chunks
+        return (
+            f"NOTE : {cve_id} est absente de l'intel base locale et aucune documentation "
+            f"FAISS ne correspond. Limite-toi strictement à la description fournie dans le "
+            f"prompt ; n'invente aucune étape d'exploitation."
+        )
 
     context_lines: list[str] = []
     if cve_entry:
@@ -106,7 +120,7 @@ def build_rag_context(service: str, version: str, cve_id: str, top_k: int = 3) -
             f"Mots-clés techniques : {', '.join(cve_entry.get('keywords', []))}",
         ]
 
-    faiss_chunks = retrieve_context(f"{cve_id} {service} {version}", top_k=top_k)
+    faiss_chunks = retrieve_context(faiss_query, top_k=top_k)
     if faiss_chunks:
         context_lines.append("\nDocumentation technique (base locale FAISS) :")
         context_lines.append(faiss_chunks)

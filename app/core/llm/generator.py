@@ -4,6 +4,7 @@ Associe la Vulnérabilité métier, le contexte RAG, et le prompt expert
 afin de solliciter le modèle Ollama.
 """
 import logging
+from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.db.models import Vulnerability, Report
@@ -14,6 +15,26 @@ from app.core.llm.report_validator import ReportValidator, COMPLETION_MARKER
 logger = logging.getLogger(__name__)
 
 from typing import Literal
+
+_EXPLOITDB_KB = Path("data/knowledge_base/exploitdb_verified")
+
+
+def _exploit_rag_hint(exploit) -> str:
+    """Retourne le meilleur hint textuel pour la requête FAISS quand description=None.
+    Priorité : titre H1 du fichier exploitdb local > décomposition nom MSF.
+    """
+    if exploit is None:
+        return ""
+    if exploit.exploit_db_id:
+        kb_file = _EXPLOITDB_KB / f"{exploit.exploit_db_id}.md"
+        if kb_file.is_file():
+            for line in kb_file.read_text(encoding="utf-8", errors="ignore").splitlines():
+                if line.startswith("# "):
+                    return line[2:].strip()
+    if exploit.metasploit_module:
+        return exploit.metasploit_module.replace("/", " ").replace("_", " ")
+    return ""
+
 
 # --- Garde-fou déterministe dérivé du vecteur CVSS ---
 # Mots-clés trahissant un RCE / une exfiltration / une élévation de privilège.
@@ -227,12 +248,8 @@ def generate_playbook_for_vulnerability(
     else:
         exploit_info = "Aucun exploit public référencé"
 
-    # Requête RAG enrichie : description + module MSF si description absente
-    _rag_desc = vuln.description or ""
-    if not _rag_desc and exploit and exploit.metasploit_module:
-        # Ex: "exploit/multi/http/struts2_content_type_ognl" donne un signal sémantique
-        # fort même sans description NVD
-        _rag_desc = exploit.metasploit_module.replace("/", " ").replace("_", " ")
+    # Requête RAG enrichie : description NVD > titre exploitdb > nom MSF décomposé
+    _rag_desc = vuln.description or _exploit_rag_hint(exploit)
 
     # 3. Contexte RAG
     context = build_rag_context(
@@ -403,9 +420,7 @@ def chat_with_vulnerability(
     # Enrichir la requête RAG avec le module MSF si description absente
     from app.db.models import Exploit as ExploitModel
     _exploit_chat = db_session.query(ExploitModel).filter(ExploitModel.cve == cve).first()
-    _chat_desc = vuln.description or ""
-    if not _chat_desc and _exploit_chat and _exploit_chat.metasploit_module:
-        _chat_desc = _exploit_chat.metasploit_module.replace("/", " ").replace("_", " ")
+    _chat_desc = vuln.description or _exploit_rag_hint(_exploit_chat)
     rag = build_rag_context(service=svc.service, version=svc.version or "", cve_id=cve, top_k=3,
                             description=_chat_desc)
     sys_prompt = (

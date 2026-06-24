@@ -3,8 +3,20 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
+
+
+@event.listens_for(Engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    """
+    Force l'activation du support des clés étrangères (Foreign Keys) pour SQLite.
+    Par défaut, SQLite ne fait pas respecter les contraintes de clés étrangères (ni CASCADE).
+    """
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
 
 
 class Base(DeclarativeBase):
@@ -37,3 +49,15 @@ def init_db(engine=None) -> None:
     from app.db import models 
 
     Base.metadata.create_all(bind=eng)
+
+    # Nettoyage automatique des lignes orphelines (ScoreML & Report)
+    from sqlalchemy import text
+    with eng.connect() as conn:
+        transaction = conn.begin()
+        try:
+            conn.execute(text("DELETE FROM scores_ml WHERE vuln_id NOT IN (SELECT id FROM vulnerabilities)"))
+            conn.execute(text("DELETE FROM reports WHERE vuln_id NOT IN (SELECT id FROM vulnerabilities) AND vuln_id IS NOT NULL"))
+            transaction.commit()
+        except Exception:
+            transaction.rollback()
+            raise

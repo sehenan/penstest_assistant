@@ -94,7 +94,7 @@ def chat_completion(messages: list[dict], system_prompt: str = "") -> str | None
         "stream": False,
         "options": {
             "temperature": 0.4,
-            "num_predict": 800,
+            "num_predict": 1500,
             "repeat_penalty": 1.3,
             "top_p": 0.9,
             "top_k": 40,

@@ -20,7 +20,7 @@ class Host(Base):
 class Service(Base):
     __tablename__ = "services"
     id = Column(Integer, primary_key=True)
-    host_id = Column(Integer, ForeignKey("hosts.id"), index=True, nullable=False)
+    host_id = Column(Integer, ForeignKey("hosts.id", ondelete="CASCADE"), index=True, nullable=False)
     port = Column(Integer, nullable=False)
     protocol = Column(String, nullable=True)
     service = Column(String, nullable=True)
@@ -36,7 +36,7 @@ class Service(Base):
 class Vulnerability(Base):
     __tablename__ = "vulnerabilities"
     id = Column(Integer, primary_key=True)
-    service_id = Column(Integer, ForeignKey("services.id"), index=True, nullable=False)
+    service_id = Column(Integer, ForeignKey("services.id", ondelete="CASCADE"), index=True, nullable=False)
     cve = Column(String, index=True, nullable=True)
     cvss_score = Column(Float, nullable=True)
     cvss_vector = Column(String, nullable=True)
@@ -63,7 +63,7 @@ class Exploit(Base):
 class ScoreML(Base):
     __tablename__ = "scores_ml"
     id = Column(Integer, primary_key=True)
-    vuln_id = Column(Integer, ForeignKey("vulnerabilities.id"), nullable=False)
+    vuln_id = Column(Integer, ForeignKey("vulnerabilities.id", ondelete="CASCADE"), nullable=False)
     score = Column(Float, nullable=True)
     label = Column(String, nullable=True)
     reasoning = Column(Text, nullable=True)  # Explication XAI
@@ -75,7 +75,7 @@ class ScoreML(Base):
 class Report(Base):
     __tablename__ = "reports"
     id = Column(Integer, primary_key=True)
-    vuln_id = Column(Integer, ForeignKey("vulnerabilities.id"), index=True, nullable=True)
+    vuln_id = Column(Integer, ForeignKey("vulnerabilities.id", ondelete="CASCADE"), index=True, nullable=True)
     title = Column(String, nullable=False)
     content_md = Column(Text, nullable=True)
     stage = Column(String, nullable=True)  # 'audit' ou 'payload'

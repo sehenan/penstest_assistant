@@ -369,6 +369,7 @@
         <option value="faible">Faible</option>
       </select>
       <button class="btn" style="background:var(--red);color:#fff;border:none" onclick="deleteSelectedVulns()">Supprimer sélection</button>
+      <button class="btn" style="background:rgba(255,51,51,0.15);color:#ff6666;border:1px solid rgba(255,51,51,0.4)" onclick="clearDB()">Vider la base</button>
     </div>
     <div class="card">
       <table><thead><tr><th><input type="checkbox" id="check-all-vulns" onclick="toggleAllVulns(this)"></th><th>#</th><th>CVE</th><th>Hôte</th><th>Service</th><th>Sévérité</th><th>Score IA</th><th>Date</th><th>Détails</th><th>Statut</th></tr></thead>
@@ -761,6 +762,27 @@ async function deleteSelectedVulns() {
       loadVulns();
       _refreshHostsIfLoaded();
       _refreshStats();
+    }
+  );
+}
+
+async function clearDB() {
+  showConfirm(
+    'Vider la base de données ?',
+    'Cette action supprimera TOUS les hôtes, ports, vulnérabilités, scores et playbooks générés.',
+    async () => {
+      try {
+        const r = await api('/api/clear-db', 'DELETE');
+        if (r.ok) {
+          log(r.message || 'Base de données vidée', 'ok');
+          logAudit('Nettoyage global de la base de données');
+          loadVulns();
+          _refreshHostsIfLoaded();
+          _refreshStats();
+        } else {
+          log('Erreur: ' + (r.error || 'inconnue'), 'warn');
+        }
+      } catch (e) { log('Erreur nettoyage: ' + e.message, 'warn'); }
     }
   );
 }

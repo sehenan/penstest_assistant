@@ -414,13 +414,13 @@ def _ollama_ok() -> bool:
 # ─── DONNÉES ──────────────────────────────────────────────────────────────
 n_vulns = db.query(Vulnerability).count()
 
-n_crit  = db.query(ScoreML).filter(ScoreML.label.in_(["Critique","Critical"])).count()
-n_high  = db.query(ScoreML).filter(ScoreML.label.in_(["Élevé","Eleve","High","Haut"])).count()
-n_med   = db.query(ScoreML).filter(ScoreML.label.in_(["Moyen","Medium"])).count()
-n_low   = db.query(ScoreML).filter(ScoreML.label.in_(["Faible","Low"])).count()
-n_scored = db.query(ScoreML).count()
+n_crit  = db.query(ScoreML).join(Vulnerability).filter(ScoreML.label.in_(["Critique","Critical"])).count()
+n_high  = db.query(ScoreML).join(Vulnerability).filter(ScoreML.label.in_(["Élevé","Eleve","High","Haut"])).count()
+n_med   = db.query(ScoreML).join(Vulnerability).filter(ScoreML.label.in_(["Moyen","Medium"])).count()
+n_low   = db.query(ScoreML).join(Vulnerability).filter(ScoreML.label.in_(["Faible","Low"])).count()
+n_scored = db.query(ScoreML).join(Vulnerability).count()
 
-scores_raw = [s[0] for s in db.query(ScoreML.score).filter(ScoreML.score.isnot(None)).all()]
+scores_raw = [s[0] for s in db.query(ScoreML.score).join(Vulnerability).filter(ScoreML.score.isnot(None)).all()]
 avg_score  = round(sum(scores_raw) / max(len(scores_raw), 1), 1) if scores_raw else 0.0
 
 n_exploits_ok = db.query(Exploit).filter(Exploit.disponible == True).count()

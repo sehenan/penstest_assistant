@@ -26,7 +26,7 @@ def get_stats(request: Request):
         total_hosts = session.query(Host).count()
 
         label_counts = {"critique": 0, "haute": 0, "moyenne": 0, "faible": 0, "info": 0}
-        scores = session.query(ScoreML).all()
+        scores = session.query(ScoreML).join(Vulnerability).all()
         for s in scores:
             lbl = (s.label or "").lower()
             if lbl == "moyen": lbl = "moyenne"
@@ -35,7 +35,7 @@ def get_stats(request: Request):
             if lbl in label_counts:
                 label_counts[lbl] += 1
 
-        total_reports = session.query(Report).count()
+        total_reports = session.query(Report).join(Vulnerability).count()
 
         avg_cvss = 0.0
         cvss_vals = [v.cvss_score for v in session.query(Vulnerability).all() if v.cvss_score]
@@ -224,6 +224,24 @@ def delete_vuln(vuln_id: int):
 
     except HTTPException:
         raise
+    except Exception as e:
+        session.rollback()
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+    finally:
+        session.close()
+
+@api_router.delete("/api/clear-db")
+def clear_database():
+    """Vider complètement la base de données (hôtes, services, vulnérabilités, scores, rapports)."""
+    session = get_session()
+    try:
+        session.query(Report).delete()
+        session.query(ScoreML).delete()
+        session.query(Vulnerability).delete()
+        session.query(Service).delete()
+        session.query(Host).delete()
+        session.commit()
+        return {"ok": True, "message": "Base de données entièrement vidée"}
     except Exception as e:
         session.rollback()
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})

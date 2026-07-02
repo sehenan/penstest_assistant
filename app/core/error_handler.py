@@ -5,6 +5,7 @@ from typing import Optional, Dict, Any
 from fastapi import HTTPException, status, Request
 from fastapi.responses import JSONResponse
 import logging
+import re
 import traceback
 from datetime import datetime
 import json
@@ -283,23 +284,39 @@ def validate_required_fields(data: Dict[str, Any], required_fields: list) -> Non
             {"missing_fields": missing_fields}
         )
 
+# Bloc <script>…</script> complet (contenu inclus), insensible à la casse et multi-lignes.
+_SCRIPT_BLOCK_RE = re.compile(r"<\s*script\b[^>]*>.*?<\s*/\s*script\s*>", re.IGNORECASE | re.DOTALL)
+# Toute balise HTML résiduelle bien formée, y compris une balise <script> orpheline.
+_HTML_TAG_RE = re.compile(r"<[^>]*>")
+# Fragment <script … sans '>' de fermeture (ex. « John<script »).
+_SCRIPT_FRAGMENT_RE = re.compile(r"<\s*/?\s*script[^>]*", re.IGNORECASE)
+
+
+def _sanitize_str(value: str, max_length: int) -> str:
+    """Tronque puis neutralise le contenu HTML/script d'une chaîne."""
+    if len(value) > max_length:
+        value = value[:max_length]
+    # 1. Retire les blocs <script>...</script> AVEC leur contenu (payload XSS inclus).
+    value = _SCRIPT_BLOCK_RE.sub("", value)
+    # 2. Retire les balises HTML résiduelles bien formées.
+    value = _HTML_TAG_RE.sub("", value)
+    # 3. Retire les fragments <script partiels (sans '>' de fermeture).
+    value = _SCRIPT_FRAGMENT_RE.sub("", value)
+    return value
+
+
+def _sanitize_value(value: Any, max_length: int) -> Any:
+    """Assainit récursivement une valeur, quel que soit son type."""
+    if isinstance(value, str):
+        return _sanitize_str(value, max_length)
+    if isinstance(value, dict):
+        return {k: _sanitize_value(v, max_length) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_sanitize_value(item, max_length) for item in value]
+    # Types non textuels (int, bool, None, float…) laissés intacts.
+    return value
+
+
 def sanitize_input(data: Dict[str, Any], max_length: int = 10000) -> Dict[str, Any]:
-    """Sanitize input data to prevent injection attacks"""
-
-    sanitized = {}
-
-    for key, value in data.items():
-        if isinstance(value, str):
-            # Truncate long strings
-            if len(value) > max_length:
-                value = value[:max_length]
-            # Remove potential script tags
-            value = value.replace("<script", "").replace("</script>", "")
-        elif isinstance(value, dict):
-            value = sanitize_input(value, max_length)
-        elif isinstance(value, list):
-            value = [sanitize_input(item, max_length) if isinstance(item, (dict, str)) else item for item in value]
-
-        sanitized[key] = value
-
-    return sanitized
+    """Assainit un dictionnaire d'entrée pour prévenir les injections (XSS/HTML)."""
+    return {key: _sanitize_value(value, max_length) for key, value in data.items()}

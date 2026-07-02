@@ -23,30 +23,24 @@ from app.core.security import create_access_token, get_password_hash
 # ============================================================================
 
 @pytest.fixture(scope="function")
-def db_session() -> Generator[Session, None, None]:
+def db_session(monkeypatch, tmp_path) -> Generator[Session, None, None]:
     """
-    Create a test database session
+    Base de test ISOLÉE (fichier temporaire), pointée via PENTEST_DB_URL.
 
-    Yields:
-        Test database session
+    La résolution dynamique de l'URL (app.db.database._resolve_db_url) fait que les
+    routes de l'API — qui appellent get_session() en direct — utilisent la MÊME base
+    temporaire que ce fixture. On obtient une vraie isolation sans réécrire les routes,
+    et surtout SANS polluer data/pentest.db.
     """
-    # Use in-memory database for tests
-    import tempfile
-    test_db = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
-    test_db.close()
+    test_db = tmp_path / "test_e2e.db"
+    monkeypatch.setenv("PENTEST_DB_URL", f"sqlite:///{test_db}")
 
+    init_db()
+    session = get_session()
     try:
-        # Initialize test database
-        init_db()
-        session = get_session()
-
         yield session
-
     finally:
         session.close()
-        # Clean up test database
-        if os.path.exists(test_db.name):
-            os.unlink(test_db.name)
 
 
 @pytest.fixture(scope="function")
@@ -426,7 +420,7 @@ class TestErrorHandling:
     def test_malformed_json(self, client: TestClient):
         """Test handling of malformed JSON"""
         response = client.post(
-            "/api/playbooks/generate",
+            "/api/generate",
             headers={"Content-Type": "application/json"},
             data="invalid json"
         )

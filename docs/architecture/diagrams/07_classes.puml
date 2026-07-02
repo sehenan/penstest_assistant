@@ -1,0 +1,105 @@
+@startuml 07_classes
+title Diagramme de classes — Modèle de domaine et services applicatifs
+!include _theme.puml
+skinparam classAttributeIconSize 0
+
+package "app.db.models — domaine (SQLAlchemy)" {
+  class Host {
+    +id : Integer
+    +ip : String {unique}
+    +hostname : String
+    +os : String
+    +timestamp : DateTime
+  }
+  class Service {
+    +id : Integer
+    +host_id : Integer <<FK>>
+    +port : Integer
+    +protocol : String
+    +service : String
+    +version : String
+    +banner : Text
+    +cpe : String
+  }
+  class Vulnerability {
+    +id : Integer
+    +service_id : Integer <<FK>>
+    +cve : String
+    +cvss_score : Float
+    +cvss_vector : String
+    +cwe : String
+    +description : Text
+    +epss_score : Float
+    +is_kev : Boolean
+    +source : String
+    +timestamp : DateTime
+  }
+  class ScoreML {
+    +id : Integer
+    +vuln_id : Integer <<FK>>
+    +score : Float
+    +label : String
+    +reasoning : Text <<XAI>>
+    +confidence : Float
+    +timestamp : DateTime
+  }
+  class Exploit {
+    +id : Integer
+    +cve : String
+    +exploit_db_id : String
+    +metasploit_module : String
+    +disponible : Boolean
+  }
+  class Report {
+    +id : Integer
+    +vuln_id : Integer <<FK, nullable>>
+    +title : String
+    +content_md : Text
+    +stage : String {audit | payload}
+    +timestamp : DateTime
+  }
+
+  Host "1" *-- "0..*" Service : services
+  Service "1" *-- "0..*" Vulnerability : vulnerabilities
+  Vulnerability "1" *-- "0..*" ScoreML : scores
+  Report "0..*" --> "0..1" Vulnerability : vuln_id
+  Exploit ..> Vulnerability : jointure logique par\nchaîne CVE (sans FK)
+}
+
+package "Services applicatifs" {
+  class FullPipeline {
+    -session : Session
+    -stats : dict
+    +run(file_path : str) : dict
+  }
+  class DataManager {
+    +extract_real_data(session) : DataFrame
+  }
+  class Orchestrator {
+    -db_path : str
+    -top_n : int
+    +_get_top_vulnerabilities(limit) : List[Dict]
+  }
+  class Retriever
+  class Generator
+  class ReportValidator {
+    +validate(report, cve_id, service, version) : dict
+    -_cve_consistent(cve_id, report) : bool
+  }
+  class RateLimiter {
+    -use_redis : bool
+    +is_allowed(key, limit, window) : bool
+    -_check_redis(...)
+    -_check_memory(...)
+  }
+
+  Orchestrator --> Retriever
+  Orchestrator --> Generator
+  FullPipeline ..> DataManager : phase scoring
+}
+
+FullPipeline ..> Vulnerability : ingère / enrichit
+DataManager ..> Vulnerability : extraction des variables
+ReportValidator ..> Report : contrôle de cohérence
+Orchestrator ..> ScoreML : top-N par score
+@enduml

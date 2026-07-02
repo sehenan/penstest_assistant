@@ -523,6 +523,22 @@ def chat_with_vulnerability(
     Utilise un system prompt court + historique tronqué pour éviter les boucles
     de répétition dues au dépassement du context window de Mistral.
     """
+    built = _build_chat_prompt(db_session, vuln_id, messages)
+    if isinstance(built, str):
+        return built  # message d'erreur
+    sys_prompt, trimmed = built
+
+    from app.core.llm.ollama_client import chat_completion
+    return chat_completion(trimmed, system_prompt=sys_prompt)
+
+
+def _build_chat_prompt(db_session: Session, vuln_id: int, messages: list[dict]):
+    """
+    Construit le system prompt (faits vérifiés + RAG) et l'historique tronqué pour
+    le chat. Centralise l'accès DB pour qu'il soit fait AVANT le streaming LLM.
+
+    Retourne (sys_prompt, trimmed_messages) ou une str d'erreur.
+    """
     vuln = db_session.get(Vulnerability, vuln_id)
     if not vuln or not vuln.service:
         return "Erreur: Vulnérabilité non trouvée."
@@ -553,6 +569,25 @@ def chat_with_vulnerability(
 
     # Conserver uniquement les N derniers échanges pour éviter l'overflow
     trimmed = messages[-_CHAT_MAX_HISTORY:]
+    return sys_prompt, trimmed
 
-    from app.core.llm.ollama_client import chat_completion
-    return chat_completion(trimmed, system_prompt=sys_prompt)
+
+def chat_with_vulnerability_stream(
+    db_session: Session,
+    vuln_id: int,
+    messages: list[dict]
+):
+    """
+    Variante STREAMING de chat_with_vulnerability. Construit le prompt (accès DB),
+    puis renvoie un itérateur de fragments de texte produits par le LLM.
+    Qualité identique (même prompt/modèle/options), latence perçue bien plus faible.
+    """
+    built = _build_chat_prompt(db_session, vuln_id, messages)
+    if isinstance(built, str):
+        def _err():
+            yield built
+        return _err()
+    sys_prompt, trimmed = built
+
+    from app.core.llm.ollama_client import chat_completion_stream
+    return chat_completion_stream(trimmed, system_prompt=sys_prompt)

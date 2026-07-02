@@ -1,0 +1,51 @@
+@startuml 10_deploiement
+title Diagramme de déploiement — docker-compose (air-gapped) + machine connectée
+!include _theme.puml
+
+node "Poste pentester (air-gapped)" {
+  node "Navigateur web" as BR
+  node "Docker Engine — réseau siati-network" {
+    node "conteneur : siati" {
+      artifact "FastAPI / uvicorn :8505" as APP
+    }
+    node "conteneur : ollama" {
+      artifact "Serveur Ollama :11434\n(modèle mistral)" as OLL
+    }
+    node "conteneur : ollama-init" {
+      artifact "Préchargement du modèle" as INIT
+    }
+    node "conteneur : redis" {
+      artifact "Redis :6379" as RED
+    }
+  }
+  folder "Volumes / montages" {
+    artifact "data/ — siati.db, threat_intel.db,\ncpe.db, exploits.db, nvd_cache/,\nfaiss_index/, model/*.joblib" as VDATA
+    artifact "logs/" as VLOGS
+    artifact "volume ollama-data" as VOLL
+    artifact "volume redis-data" as VRED
+  }
+}
+
+node "Machine connectée Internet" {
+  artifact "siati_intel_builder\n(ETL NVD / EPSS / KEV)" as BUILDER
+}
+cloud "Internet" {
+  artifact "NVD — FIRST EPSS — CISA KEV" as SRC
+}
+
+BR --> APP : HTTP :8505
+APP --> OLL : HTTP :11434
+APP --> RED : TCP :6379 (optionnel,\nrepli en mémoire)
+INIT ..> OLL : ollama pull mistral
+APP --> VDATA : lecture / écriture
+APP --> VLOGS
+OLL --> VOLL
+RED --> VRED
+BUILDER --> SRC : HTTPS
+BUILDER ..> VDATA : bundle threat_intel.db\n(transfert manuel hors ligne)
+
+note bottom of BUILDER
+  Profils docker-compose additionnels :
+  production, monitoring (Prometheus + Grafana)
+end note
+@enduml

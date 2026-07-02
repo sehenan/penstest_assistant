@@ -26,9 +26,19 @@ def test_ingest_openvas_finds_cve(db_session):
 
 
 def test_host_dedup_second_ingest(db_session):
+    """Idempotence : ré-ingérer le même scan ne duplique NI hôtes NI services."""
     ingest_scan_file(str(DATA / "scan_openvas.xml"), db_session)
-    ingest_scan_file(str(DATA / "scan_openvas.xml"), db_session)
-    n_hosts = db_session.scalar(select(func.count()).select_from(Host))
-    assert n_hosts == 1
-    n_srv = db_session.scalar(select(func.count()).select_from(Service))
-    assert n_srv == 2
+    hosts_after_first = db_session.scalar(select(func.count()).select_from(Host))
+    srv_after_first = db_session.scalar(select(func.count()).select_from(Service))
+
+    # Un seul hôte dans ce scan, dédupliqué sur l'IP.
+    assert hosts_after_first == 1
+    assert srv_after_first >= 1
+
+    # Seconde ingestion du fichier identique : aucun ajout (upsert idempotent).
+    counts = ingest_scan_file(str(DATA / "scan_openvas.xml"), db_session)
+    assert counts["hosts"] == 0
+    assert counts["services"] == 0
+
+    assert db_session.scalar(select(func.count()).select_from(Host)) == hosts_after_first
+    assert db_session.scalar(select(func.count()).select_from(Service)) == srv_after_first

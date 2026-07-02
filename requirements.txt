@@ -28,7 +28,10 @@ packaging==24.2
 # --- Données & Machine Learning ---
 pandas==2.1.1
 numpy==1.26.4
-scikit-learn==1.8.0
+# scikit-learn épinglé sur 1.6.1 : version qui a SÉRIALISÉ les modèles
+# data/model/*.joblib (CalibratedClassifierCV + XGBRegressor). Un écart de version
+# déclenche InconsistentVersionWarning et peut fausser l'inférence au dépicklage.
+scikit-learn==1.6.1
 xgboost==3.2.0
 joblib==1.5.3
 matplotlib==3.10.9
@@ -55,3 +58,6 @@ prometheus-client==0.21.1
 # --- Export PDF des rapports ---
 markdown==3.7
 xhtml2pdf==0.2.16
+
+# --- Import de scans au format PDF ---
+pypdf==6.14.2

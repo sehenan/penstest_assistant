@@ -1,0 +1,36 @@
+@startuml 01_contexte_systeme
+title Diagramme de contexte système — SIATI
+!include _theme.puml
+
+actor "Pentester / Analyste sécurité" as P
+actor "Opérateur Threat Intel\n(machine connectée)" as O
+
+rectangle "SIATI\nSystème Intelligent d'Assistance\naux Tests d'Intrusion\n(FastAPI + CLI, air-gapped)" as SIATI
+
+rectangle "Outils de scan\nNmap / Nessus / OpenVAS" as SCAN
+rectangle "Ollama\nLLM local (mistral)\nhttp://localhost:11434" as OLLAMA
+rectangle "Redis (optionnel)\nlimitation de débit / cache" as REDIS
+rectangle "SIATI Intel Builder\n(outil séparé, machine connectée)" as BUILDER
+
+cloud "Sources Internet" {
+  rectangle "NVD (NIST)" as NVD
+  rectangle "FIRST EPSS" as EPSS
+  rectangle "CISA KEV" as KEV
+}
+
+SCAN ..> P : exports XML / .nessus / txt
+P --> SIATI : dépôt de scans, consultation,\ngénération de playbooks, export PDF
+SIATI --> OLLAMA : HTTP (génération, chat,\ntraduction EN→FR)
+SIATI --> REDIS : compteurs de débit\n(repli en mémoire)
+O --> BUILDER : exécution de l'ETL
+BUILDER --> NVD : CVE (JSON 2.0)
+BUILDER --> EPSS : scores EPSS
+BUILDER --> KEV : catalogue KEV
+BUILDER ..> SIATI : bundle threat_intel.db\n(transfert hors ligne)
+
+note bottom of SIATI
+  Propriété architecturale clé :
+  aucun appel Internet à l'exécution
+  (enrichissement 100 % local)
+end note
+@enduml

@@ -62,8 +62,13 @@ class FullPipeline:
             self.stats["enrichment_exploit"] = enrich_exploits(self.session)
             
             # 5. Traduction des descriptions (EN → FR)
-            logger.info("Pipeline Step 5: Translation (EN→FR)...")
-            self.stats["translation"] = translate_vulnerability_descriptions(self.session, use_llm=True)
+            # use_llm=False : la traduction par dictionnaire technique (200+ termes) est
+            # instantanée et hors-ligne. La traduction LLM faisait un appel Ollama PAR vuln
+            # (+ sleep 0.5s), ce qui rendait l'import extrêmement lent (plusieurs minutes).
+            # La traduction fine LLM reste disponible via translate_vulnerability_descriptions
+            # (use_llm=True) si on souhaite la lancer manuellement hors du chemin d'import.
+            logger.info("Pipeline Step 5: Translation (EN→FR, dictionnaire)...")
+            self.stats["translation"] = translate_vulnerability_descriptions(self.session, use_llm=False)
 
             # 6. Priorisation ML (XGBoost)
             logger.info("Pipeline Step 6: ML Scoring...")

@@ -1,9 +1,15 @@
 # === FICHIER : config.yaml ===
-# Configuration globale du module LLM + RAG
+# Configuration du module LLM V2 / RAG (commandes CLI playbook-v2, index-rag-v2).
+#
+# NB IMPORTANT : le cœur applicatif (API web, chat, playbook standard) NE lit PAS
+# ce fichier. Il se configure par variables d'environnement :
+#   - Base   : PENTEST_DB_URL / SIATI_DB_PATH  (défaut : data/pentest.db)
+#   - Ollama : OLLAMA_HOST, OLLAMA_MODEL, OLLAMA_TIMEOUT  (cf. app/core/llm/ollama_client.py)
+# Les valeurs ci-dessous ne s'appliquent qu'à la voie V2 (app/module_llm).
 
 # Paramètres de la base de données
 database:
-  path: "data/siati.db"
+  path: "data/pentest.db"   # base runtime réelle (aligné sur app/db/database.py)
   top_n_vulns: 10
 
 # Paramètres RAG (Recherche Vectorielle)

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>SIATI — Diagrammes d'architecture</title>
+<style>
+  body { margin: 0; font-family: -apple-system, sans-serif; display: flex; height: 100vh; }
+  nav { width: 280px; overflow-y: auto; border-right: 1px solid #ddd; padding: 12px; box-sizing: border-box; flex-shrink: 0; }
+  nav h1 { font-size: 15px; margin: 4px 0 12px; }
+  nav a { display: block; padding: 7px 10px; margin: 2px 0; border-radius: 6px; text-decoration: none; color: #222; font-size: 13px; }
+  nav a:hover { background: #f0f0f0; }
+  nav a.active { background: #1a4f8b; color: #fff; }
+  main { flex: 1; overflow: auto; padding: 20px; background: #fafafa; }
+  main img { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 16px; max-width: none; }
+</style>
+</head>
+<body>
+<nav id="nav"><h1>SIATI — Architecture</h1></nav>
+<main><img id="view" alt="diagramme"></main>
+<script>
+const diagrams = [
+  ["01_contexte_systeme", "01 — Contexte système"],
+  ["02_architecture_globale", "02 — Architecture globale"],
+  ["03_c4_contexte", "03 — C4 niveau 1 : Contexte"],
+  ["04_c4_conteneurs", "04 — C4 niveau 2 : Conteneurs"],
+  ["05_c4_composants", "05 — C4 niveau 3 : Composants"],
+  ["06_cas_utilisation", "06 — Cas d'utilisation"],
+  ["07_classes", "07 — Diagramme de classes"],
+  ["08a_sequence_ingestion", "08a — Séquence : ingestion"],
+  ["08b_sequence_playbook", "08b — Séquence : playbook"],
+  ["09_activite_pipeline", "09 — Activité : pipeline auto"],
+  ["10_deploiement", "10 — Déploiement Docker"],
+  ["11_modele_entite_association", "11 — Modèle entité-association"],
+  ["12_architecture_ml", "12 — Architecture ML"],
+  ["13_architecture_securite", "13 — Architecture sécurité"],
+];
+const nav = document.getElementById("nav"), view = document.getElementById("view");
+diagrams.forEach(([file, label], i) => {
+  const a = document.createElement("a");
+  a.textContent = label;
+  a.href = "#" + file;
+  a.onclick = () => select(i);
+  nav.appendChild(a);
+});
+function select(i) {
+  view.src = "rendered/" + diagrams[i][0] + ".svg";
+  nav.querySelectorAll("a").forEach((a, j) => a.classList.toggle("active", i === j));
+}
+const hash = location.hash.slice(1);
+select(Math.max(0, diagrams.findIndex(d => d[0] === hash)));
+</script>
+</body>
+</html>

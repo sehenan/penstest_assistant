@@ -1,0 +1,53 @@
+@startuml 08a_sequence_ingestion
+title Diagramme de séquence — POST /api/ingest (mode auto-pilot)
+!include _theme.puml
+
+actor "Pentester (SPA)" as U
+participant "api_router\nmain_api.py" as API
+participant "FullPipeline\npipeline.py" as PIPE
+participant "ingest_scan_file\n+ parsers/detect" as ING
+participant "normalizer.py" as NORM
+participant "Enrichissement\n(cpe_to_cve, nvd, cpe,\nexploit_db, translate)" as ENR
+participant "DataManager +\npredict_and_store" as ML
+database "siati.db" as DB
+database "Intel locale\n(threat_intel.db, nvd_cache,\ncpe.db, exploits.db)" as INTEL
+participant "Ollama" as LLM
+
+U -> API : POST /api/ingest\n(fichier, auto_pilot=true)
+API -> API : écriture du fichier temporaire
+API -> PIPE : run(tmp_path)
+
+PIPE -> ING : ingest_scan_file()
+ING -> ING : detect.py — format ?
+ING -> NORM : structure normalisée
+NORM -> DB : upsert Host / Service / Vulnerability
+
+PIPE -> ENR : enrich_service_vulns_from_cpe()
+ENR -> INTEL : CVE candidates par CPE\n(filtre de plage de versions)
+ENR -> DB : nouvelles Vulnerability (CVE)
+
+PIPE -> ENR : enrich_vulnerabilities_from_local_intel()
+ENR -> INTEL : intel_cve / intel_epss / intel_kev
+ENR -> DB : maj CVSS, CWE, EPSS, is_kev
+
+PIPE -> ENR : enrich_services_with_cpe()\nenrich_exploits()
+ENR -> DB : maj CPE + lignes Exploit
+
+PIPE -> ENR : translate_vulnerability_descriptions(use_llm=True)
+ENR -> LLM : traduction EN→FR
+
+PIPE -> ML : extract_real_data()\n+ engineer_features()
+ML -> DB : lecture des vulnérabilités enrichies
+ML -> ML : inférence XGBoost\n(régresseur + classificateur)
+ML -> DB : insertion ScoreML (score, label,\nconfidence, reasoning)
+
+alt pipeline réussi
+  PIPE --> API : {ok: true, stats, duration}
+  API --> U : 200 {ok, stats}
+else exception
+  PIPE -> DB : rollback()
+  PIPE --> API : {ok: false, error}
+  API --> U : réponse d'erreur
+end
+API -> API : suppression du fichier temporaire
+@enduml

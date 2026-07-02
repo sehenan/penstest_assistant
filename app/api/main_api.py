@@ -3,23 +3,55 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional, List
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, Request
+from fastapi import APIRouter, UploadFile, File, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app.db.database import get_session
 from app.db.models import Host, Service, Vulnerability, ScoreML, Report, Exploit
-from app.core.security import rate_limit
+from app.core.security import rate_limit, verify_token_optional, require_auth
 from app.core.error_handler import DatabaseError
 
 ROOT = Path(__file__).resolve().parents[2]
 
 api_router = APIRouter()
 
+
+# ── 0. HEALTH CHECK ───────────────────────────────────────────────────────────
+@api_router.get("/health")
+def health_check():
+    """Sonde de disponibilité (déploiement / monitoring). Vérifie la base et Ollama
+    sans jamais échouer en dur : renvoie toujours 200 avec l'état des dépendances."""
+    services = {}
+
+    # Base de données
+    try:
+        session = get_session()
+        try:
+            session.query(Vulnerability).count()
+            services["database"] = "up"
+        finally:
+            session.close()
+    except Exception:
+        services["database"] = "down"
+
+    # Ollama (LLM) — best-effort, ne bloque pas la sonde
+    try:
+        from app.core.llm.ollama_client import check_ollama_status
+        services["ollama"] = "up" if check_ollama_status() else "down"
+    except Exception:
+        services["ollama"] = "down"
+
+    return {
+        "status": "healthy",
+        "services": services,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
 # ── 1. STATS GLOBALES ─────────────────────────────────────────────────────────
 @api_router.get("/api/stats")
 @rate_limit(limit=60, window=60)
-def get_stats(request: Request):
+def get_stats(request: Request, _auth=Depends(verify_token_optional)):
     session = get_session()
     try:
         total_vulns = session.query(Vulnerability).count()
@@ -167,7 +199,7 @@ def get_vulns(severity: str = "", source: str = "", q: str = ""):
         session.close()
 
 @api_router.delete("/api/vulns/{vuln_id}")
-def delete_vuln(vuln_id: int):
+def delete_vuln(vuln_id: int, _auth=Depends(require_auth)):
     session = get_session()
     try:
         v = session.query(Vulnerability).filter(Vulnerability.id == vuln_id).first()
@@ -231,7 +263,7 @@ def delete_vuln(vuln_id: int):
         session.close()
 
 @api_router.delete("/api/clear-db")
-def clear_database():
+def clear_database(_auth=Depends(require_auth)):
     """Vider complètement la base de données (hôtes, services, vulnérabilités, scores, rapports)."""
     session = get_session()
     try:
@@ -288,7 +320,8 @@ def get_vuln_detail(vuln_id: int):
             "id": v.id,
             "cve": v.cve,
             "description": v.description,
-            "cvss": v.cvss_score,
+            "cvss": v.cvss_score,          # alias convivial (consommé par l'UI)
+            "cvss_score": v.cvss_score,    # nom canonique (aligné sur le modèle)
             "cvss_vector": v.cvss_vector,
             "cwe": v.cwe,
             "source": v.source,
@@ -445,7 +478,7 @@ def get_report_pdf(report_id: int):
         session.close()
 
 @api_router.delete("/api/reports/{report_id}")
-def delete_report(report_id: int):
+def delete_report(report_id: int, _auth=Depends(require_auth)):
     session = get_session()
     try:
         r = session.query(Report).filter(Report.id == report_id).first()
@@ -499,18 +532,36 @@ def generate_playbook(req: PlaybookRequest):
 
 @api_router.post("/api/chat")
 def chat_endpoint(req: ChatRequest):
+    from fastapi.responses import StreamingResponse
+    from app.core.llm.ollama_client import check_ollama_status
+
+    # Pré-vérification unique d'Ollama (au lieu d'un check redondant par appel LLM).
+    if not check_ollama_status():
+        return JSONResponse(
+            status_code=503,
+            content={"ok": False, "error": "Ollama inaccessible. Lancez Ollama avec : ollama serve"},
+        )
+
     session = get_session()
     try:
-        from app.core.llm.generator import chat_with_vulnerability
+        from app.core.llm.generator import chat_with_vulnerability_stream
         messages = req.history + [{"role": "user", "content": req.message}]
-        response = chat_with_vulnerability(session, req.vuln_id, messages)
-        if response:
-            return {"ok": True, "response": response}
-        return JSONResponse(status_code=500, content={"ok": False, "error": "Pas de réponse LLM"})
+        # Construit le prompt (accès DB) immédiatement ; l'itérateur retourné ne fait
+        # plus que du HTTP vers Ollama, on peut donc fermer la session ensuite.
+        stream = chat_with_vulnerability_stream(session, req.vuln_id, messages)
     except Exception as e:
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
     finally:
         session.close()
+
+    def gen():
+        try:
+            for chunk in stream:
+                yield chunk
+        except Exception as e:
+            yield f"\n\n⚠️ Erreur de génération : {e}"
+
+    return StreamingResponse(gen(), media_type="text/plain; charset=utf-8")
 
 @api_router.get("/api/audit")
 def get_audit_log():
@@ -520,7 +571,7 @@ def get_audit_log():
 
 # ── 7. INGESTION SCAN ─────────────────────────────────────────────────────────
 @api_router.post("/api/ingest")
-async def ingest_scan(file: UploadFile = File(...), auto_pilot: bool = True):
+async def ingest_scan(file: UploadFile = File(...), auto_pilot: bool = True, _auth=Depends(require_auth)):
     import tempfile, shutil
     suffix = Path(file.filename).suffix
     if not suffix:
@@ -560,7 +611,7 @@ async def ingest_scan(file: UploadFile = File(...), auto_pilot: bool = True):
 
 # ── 8. PIPELINE AUTO (score ML) ───────────────────────────────────────────────
 @api_router.post("/api/score")
-def run_ml_score():
+def run_ml_score(_auth=Depends(require_auth)):
     session = get_session()
     try:
         from app.core.ml.data_manager import DataManager

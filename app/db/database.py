@@ -30,11 +30,29 @@ def _default_db_url() -> str:
     return f"sqlite:///{data_dir / 'pentest.db'}"
 
 
-DATABASE_URL = os.environ.get("PENTEST_DB_URL", _default_db_url())
+def _resolve_db_url() -> str:
+    """Résout l'URL de la base à CHAQUE appel (et non au seul import).
+
+    Priorité : PENTEST_DB_URL (URL SQLAlchemy complète) > SIATI_DB_PATH (chemin
+    de fichier, cf. CLAUDE.md) > base par défaut data/pentest.db.
+    Résolution dynamique => permet d'isoler les tests via une base temporaire
+    positionnée par variable d'environnement avant les requêtes.
+    """
+    url = os.environ.get("PENTEST_DB_URL")
+    if url:
+        return url
+    path = os.environ.get("SIATI_DB_PATH")
+    if path:
+        return f"sqlite:///{path}"
+    return _default_db_url()
+
+
+# Conservé pour compatibilité ascendante ; les fonctions résolvent dynamiquement.
+DATABASE_URL = _resolve_db_url()
 
 
 def get_engine(url: str | None = None):
-    return create_engine(url or DATABASE_URL, echo=False)
+    return create_engine(url or _resolve_db_url(), echo=False)
 
 
 def get_session(engine=None):

@@ -1,0 +1,67 @@
+@startuml 09_activite_pipeline
+title Diagramme d'activité — Pipeline complet (commande auto / auto-pilot)
+!include _theme.puml
+left to right direction
+
+' --- Spécifique 09 : flux horizontal compact (page paysage A3) ---
+skinparam ranksep 26
+skinparam nodesep 14
+skinparam defaultFontSize 14
+skinparam ArrowFontSize 13
+
+partition "Phase 1 — Ingestion" {
+  (*) --> "Recevoir le\nfichier de scan"
+  --> "Détecter le format\n(detect.py)"
+  if "Format\nreconnu ?" then
+    -->[oui] "Parser\n(nmap / nessus /\nopenvas / txt)"
+    --> "Normaliser et\ndédoublonner"
+    --> "Upsert Host /\nService /\nVulnerability"
+  else
+    -->[non] "Lever une erreur\nde format"
+    --> (*)
+  endif
+}
+
+partition "Phase 2 — Enrichissement local" {
+  "Upsert Host /\nService /\nVulnerability" --> "CPE → CVE\ndepuis nvd_cache\n(filtre de version)"
+  if "threat_intel.db\nprésente ?" then
+    -->[oui] "Compléter CVSS /\nCWE / description\n(intel_cve)"
+    --> "Compléter EPSS\net KEV\n(intel_epss / kev)"
+  else
+    -->[non] "Comptabiliser\nmissing_intel_db,\npoursuivre sans NVD"
+  endif
+  --> "Compléter les\nCPE (cpe.db)"
+  --> "Associer les\nexploits (exploits.db)"
+  --> "Traduire les\ndescriptions\nEN→FR (LLM)"
+}
+
+partition "Phase 3 — Scoring ML" {
+  "Traduire les\ndescriptions\nEN→FR (LLM)" --> "Extraire le DataFrame\n(DataManager)"
+  if "Données\nprésentes ?" then
+    -->[oui] "Calculer les variables\n(engineer_features)"
+    --> "Inférer régresseur\n+ classificateur\nXGBoost"
+    --> "Persister ScoreML\n(score, label,\nconfidence,\nreasoning XAI)"
+  else
+    -->[non] "scoring_ml\n= skipped"
+  endif
+}
+
+partition "Phase 4 — Playbook (à la demande)" {
+  if "Ollama\ndisponible ?" then
+    -->[oui] "Récupérer le\ncontexte RAG\n(FAISS, top-k)"
+    --> "Générer le playbook\n(mistral, T = 0,1)"
+    --> "Valider la cohérence\n(ReportValidator)"
+    --> "Persister le Report\n(audit | payload)"
+    --> (*)
+  else
+    -->[non] "Refuser la\ngénération\n(HTTP 503)"
+    --> (*)
+  endif
+}
+
+note bottom
+  Toute exception dans les phases 1 à 3
+  déclenche session.rollback() et retourne
+  {ok: false, error} (FullPipeline.run).
+end note
+@enduml

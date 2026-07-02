@@ -1,0 +1,76 @@
+@startuml 05_c4_composants
+!include <C4/C4_Component>
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Helvetica
+skinparam shadowing false
+skinparam linetype ortho
+LAYOUT_TOP_DOWN()
+title Diagramme C4 — Niveau 3 : Composants du backend SIATI
+UpdateElementStyle(component, $bgColor="white", $fontColor="black", $borderColor="black")
+UpdateElementStyle(container, $bgColor="white", $fontColor="black", $borderColor="black")
+UpdateElementStyle(external_system, $bgColor="white", $fontColor="black", $borderColor="black")
+
+Container_Boundary(backend, "Backend SIATI (FastAPI + CLI)") {
+  Component(server, "server.py", "FastAPI", "Application, lifespan (préchargement embeddings), CORS, handler d'erreurs")
+  Component(router, "main_api.py", "APIRouter", "15 routes REST : stats, hosts, vulns, reports, PDF, generate, chat, ingest, score, performance, audit")
+  Component(cli, "cmd.py", "Typer", "Commandes CLI du pipeline")
+  Component(pipeline, "pipeline.py — FullPipeline", "Python", "Orchestration séquentielle : ingestion → enrichissements → scoring")
+  Component(ingest, "ingest.py + parsers/", "Python", "detect.py + parsers nmap, nessus, openvas, txt")
+  Component(norm, "normalizer.py", "Python", "Dédoublonnage, upsert Host / Service / Vulnerability")
+  Component(enr, "enrichment/", "Python", "nvd.py, cpe_to_cve.py (filtre de versions), cpe.py, exploit_db.py, translate.py, sync_manager.py")
+  Component(ml, "ml/", "XGBoost", "data_manager.py, features.py, predict.py, evaluate.py")
+  Component(llm1, "llm/ (V1)", "Python", "rag.py (FAISS), ollama_client.py, generator.py, report_validator.py")
+  Component(llm2, "module_llm/ (V2)", "Python", "rag/indexer.py, rag/retriever.py, llm/generator.py, llm/orchestrator.py")
+  Component(sec, "security.py", "passlib + python-jose", "RateLimiter actif ; JWT / rôles non câblés")
+  Component(err, "error_handler.py", "Python", "Erreurs typées + handler global")
+  Component(orm, "db/models.py + database.py", "SQLAlchemy", "ORM et sessions")
+}
+
+ContainerDb(db, "siati.db", "SQLite", "")
+ContainerDb(intel, "Bases d'enrichissement", "SQLite / JSON", "threat_intel.db, cpe.db, exploits.db, nvd_cache/")
+ContainerDb(faiss, "Index FAISS", "fichiers", "pentest.index + chunks.json")
+System_Ext(ollama, "Ollama", "mistral")
+System_Ext(redis, "Redis", "optionnel")
+
+' ===== Entrées -> routage / orchestration =====
+Rel_Down(server, router, "inclut")
+Rel_Down(cli, pipeline, "auto")
+Rel_Right(router, pipeline, "POST /api/ingest (auto-pilot)")
+
+' ===== Routage REST -> traitements =====
+Rel_Down(router, ml, "POST /api/score")
+Rel_Down(router, llm1, "/api/generate, /api/chat")
+Rel_Down(cli, llm2, "playbook-v2, index-rag-v2")
+
+' ===== Pipeline séquentiel (colonne vertébrale) =====
+Rel_Down(pipeline, ingest, "phase 1")
+Rel_Down(ingest, norm, "structure normalisée")
+Rel_Down(pipeline, enr, "phases 1b à 5")
+Rel_Down(pipeline, ml, "phase 6")
+
+' ===== Persistance via l'ORM =====
+Rel_Down(norm, orm, "upsert")
+Rel_Down(enr, orm, "mise à jour")
+Rel_Down(ml, orm, "écrit ScoreML")
+Rel_Right(router, orm, "requêtes / suppressions")
+
+' ===== Transverse =====
+Rel_Right(router, sec, "@rate_limit (/api/stats)")
+Rel_Right(server, err, "handler global")
+
+' ===== Accès données / externes (vers le bas) =====
+Rel_Down(orm, db, "SQLite")
+Rel_Down(enr, intel, "lecture")
+Rel_Down(llm1, faiss, "recherche top-k")
+Rel_Down(llm2, faiss, "indexation + recherche")
+Rel_Down(enr, ollama, "traduction EN->FR")
+Rel_Down(llm1, ollama, "HTTP :11434")
+Rel_Down(llm2, ollama, "HTTP :11434")
+Rel_Down(sec, redis, "compteurs de débit")
+
+' ===== Indices de placement pour aligner la bande de données (bas) =====
+Lay_Right(db, intel)
+Lay_Right(intel, faiss)
+Lay_Right(faiss, ollama)
+Lay_Right(ollama, redis)
+@enduml

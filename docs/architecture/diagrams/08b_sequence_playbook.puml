@@ -1,0 +1,35 @@
+@startuml 08b_sequence_playbook
+title Diagramme de séquence — POST /api/generate (playbook V1)
+!include _theme.puml
+
+actor "Pentester (SPA)" as U
+participant "api_router\nmain_api.py" as API
+participant "ollama_client" as OC
+participant "generator.py (V1)" as GEN
+participant "rag.py\n(FAISS + MiniLM)" as RAG
+participant "ReportValidator" as VAL
+database "siati.db" as DB
+participant "Ollama\n(mistral, T = 0,1)" as LLM
+
+U -> API : POST /api/generate {vuln_id, mode}
+API -> OC : check_ollama_status()
+
+alt Ollama indisponible
+  OC --> API : false
+  API --> U : 503 « Ollama inaccessible »
+else Ollama disponible
+  API -> GEN : generate_playbook_for_vulnerability(vuln_id, mode)
+  GEN -> DB : contexte : Vulnerability + Service\n+ Exploit + ScoreML
+  GEN -> RAG : build_rag_context(service, version, cve)
+  RAG -> RAG : embedding de la requête\n(all-MiniLM-L6-v2)
+  RAG --> GEN : top-k extraits\n(data/knowledge_base)
+  GEN -> LLM : generate_text(prompt + contexte RAG)
+  LLM --> GEN : playbook (markdown)
+  GEN -> VAL : validate(report, cve, service, version)
+  VAL --> GEN : verdict de cohérence
+  GEN -> DB : insertion Report\n(stage = audit | payload)
+  GEN --> API : report_id
+  API -> DB : relecture du Report
+  API --> U : 200 {report_id, title, content_md}
+end
+@enduml

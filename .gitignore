@@ -47,9 +47,16 @@ test_out.txt
 *.sqlite3
 *.log
 
+# Bases runtime (générées/mutées à l'exécution — recréées par init_db / ingestion).
+# Les bases de RÉFÉRENCE (cpe.db, exploits.db, threat_intel.db) restent versionnées.
+data/pentest.db
+data/siati.db
+
 # Données générées et Bases de connaissances locales
 data/knowledge_base/
 outputs/
 
 data/Dataset/nvdcve-2.0-2022.json (2).zip
 data/faiss_index/chunks.json
+
+.DS_Store

@@ -398,9 +398,9 @@
       <div class="p-step idle" id="s5"><div class="p-num">05</div><div class="p-name">Génération RAG</div><div class="p-st">En attente</div></div>
     </div>
     <div class="upload-zone" id="dropz" onclick="document.getElementById('finput').click()">
-      <input type="file" id="finput" accept=".xml,.nessus" hidden onchange="handleFile(this.files[0])">
+      <input type="file" id="finput" accept=".xml,.nessus,.txt,.pdf" hidden onchange="handleFile(this.files[0])">
       <div class="uz-title">Glisser un fichier de scan</div>
-      <div class="uz-sub">Nmap XML · Nessus · OpenVAS</div>
+      <div class="uz-sub">Nmap XML · Nessus · OpenVAS · TXT · PDF</div>
     </div>
     <div class="card">
       <div class="card-head"><span class="card-title">Journal d'exécution</span></div>
@@ -1323,15 +1323,33 @@ function sendChat() {
     body: JSON.stringify(payload),
     headers: { 'Content-Type': 'application/json' }
   })
-  .then(r => r.json())
-  .then(r => {
-    if (r.ok) {
-        loading.innerHTML = '<div>' + fmtMD(r.response || 'Réponse non disponible.') + '</div>';
-        chatHistory.push({ role: 'user', content: txt });
-        chatHistory.push({ role: 'assistant', content: r.response });
-    } else {
-        loading.innerText = 'Erreur: ' + r.error;
+  .then(async r => {
+    // Erreur côté serveur (Ollama down, etc.) → réponse JSON, pas un flux
+    const ct = r.headers.get('content-type') || '';
+    if (!r.ok || ct.includes('application/json')) {
+      let msg = 'Erreur ' + r.status;
+      try { const j = await r.json(); msg = j.error || msg; } catch (e) {}
+      loading.innerText = 'Erreur: ' + msg;
+      hist.scrollTop = hist.scrollHeight;
+      return;
     }
+
+    // Streaming token par token : on affiche au fur et à mesure
+    loading.innerHTML = '<div></div>';
+    const target = loading.firstChild;
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let full = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      full += dec.decode(value, { stream: true });
+      target.innerHTML = fmtMD(full);
+      hist.scrollTop = hist.scrollHeight;
+    }
+    if (!full) { target.innerHTML = fmtMD('Réponse non disponible.'); }
+    chatHistory.push({ role: 'user', content: txt });
+    chatHistory.push({ role: 'assistant', content: full });
     hist.scrollTop = hist.scrollHeight;
   })
   .catch((e) => {

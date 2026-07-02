@@ -5,10 +5,20 @@ import pytest
 import time
 from unittest.mock import Mock, patch
 from fastapi import HTTPException, Request
+from app.core import security
 from app.core.security import (
     RateLimiter, verify_password, get_password_hash,
     create_access_token, decode_access_token, rate_limit
 )
+
+
+@pytest.fixture(autouse=True)
+def _fresh_rate_limiter(monkeypatch):
+    """Isole chaque test : remplace le singleton global par un limiteur mémoire
+    neuf. Sinon l'état Redis persistant (si Redis tourne) contamine les tests de
+    rate-limiting entre exécutions. Le décorateur résout `rate_limiter` dans les
+    globals du module à chaque appel, donc le monkeypatch prend effet."""
+    monkeypatch.setattr(security, "rate_limiter", RateLimiter(use_redis=False))
 
 class TestPasswordHashing:
     """Test password hashing and verification"""

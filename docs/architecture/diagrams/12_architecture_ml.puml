@@ -1,0 +1,59 @@
+@startuml 12_architecture_ml
+title Architecture Machine Learning — SIATI (XGBoost + pile sémantique RAG)
+!include _theme.puml
+
+package "Hors ligne — Jeu de données et entraînement" {
+  [NVD bulk JSON\nnvd_bulk_downloader.py] as BULK
+  [fetch_training_data.py\nconsolidate_data.py\nbuild_master_dataset.py] as FETCH
+  [entrainement_dataset.csv] as CSV
+  [train.py (v2)\nXGBRegressor +\nCalibratedClassifierCV\n(quantiles q25 / q60 / q88)] as TRAIN
+  [regresseur_xgb.joblib] as REG
+  [classificateur_xgb.joblib] as CLF
+  [metrics_xgb.json +\nevaluate.py → data/evaluation/\n(matrice de confusion, courbes...)] as METR
+}
+
+package "En ligne — Inférence (score / auto-pilot)" {
+  [DataManager\nextract_real_data()] as DM
+  [features.py — engineer_features()\nepss, epss_log, age_cve, age_bucket,\nac_num, pr_num, ui_num, host_type,\nport, svc_type_num, port_is_web] as FEAT
+  [predict.py\npredict_and_store()\nlabels : Faible / Moyenne /\nHaute / Critique] as PRED
+}
+
+database "siati.db" as DB
+[ScoreML\nscore 0–1, label, confidence,\nreasoning (explication XAI)] as SCORE
+
+package "Pile sémantique (RAG)" {
+  [data/knowledge_base/\nhacktricks, exploitdb,\nmitre_attack, payloadsallthethings] as KB
+  [Indexer V2\n(tiktoken, chunks 500,\noverlap 50, métadonnées)] as IDX
+  [all-MiniLM-L6-v2\n(SentenceTransformer)] as EMB
+  [Index FAISS\npentest.index + chunks.json] as FAISS
+  [Retriever (top_k = 5)] as RET
+  [Generator V1 / V2\n+ ReportValidator] as GEN
+  [Ollama — mistral\n(température 0,1)] as OLLAMA
+}
+
+' ===== Chaîne hors ligne (entraînement) =====
+BULK -down-> FETCH
+FETCH -down-> CSV
+CSV -down-> TRAIN
+TRAIN -down-> REG
+TRAIN -down-> CLF
+TRAIN -down-> METR
+
+' ===== Chaîne en ligne (inférence) =====
+DB -down-> DM
+DM -down-> FEAT
+FEAT -down-> PRED
+REG -down-> PRED : chargement joblib
+CLF -down-> PRED : chargement joblib
+PRED -down-> SCORE
+SCORE -right-> DB : persistance
+
+' ===== Chaîne sémantique (RAG) =====
+KB -down-> IDX
+IDX -down-> EMB
+EMB -down-> FAISS
+FAISS -down-> RET
+RET -down-> GEN
+GEN -down-> OLLAMA
+DB -right-> GEN : contexte vulnérabilité\n(top-N par score ML)
+@enduml

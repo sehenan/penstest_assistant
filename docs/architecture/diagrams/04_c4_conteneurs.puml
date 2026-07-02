@@ -1,0 +1,43 @@
+@startuml 04_c4_conteneurs
+!include <C4/C4_Container>
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Helvetica
+skinparam shadowing false
+skinparam linetype ortho
+title Diagramme C4 — Niveau 2 : Conteneurs
+UpdateElementStyle(person, $bgColor="white", $fontColor="black", $borderColor="black")
+UpdateElementStyle(system, $bgColor="white", $fontColor="black", $borderColor="black")
+UpdateElementStyle(external_system, $bgColor="white", $fontColor="black", $borderColor="black")
+UpdateElementStyle(container, $bgColor="white", $fontColor="black", $borderColor="black")
+
+Person(pentester, "Pentester / Analyste")
+
+System_Boundary(siati, "SIATI") {
+  Container(spa, "Tableau de bord SPA", "HTML/JS statique", "app/ui/index.html, servi par FastAPI")
+  Container(api, "Backend FastAPI", "Python / uvicorn :8505", "server.py + api_router : REST, pipeline auto-pilot, export PDF (xhtml2pdf)")
+  Container(cli, "CLI Typer", "Python", "ingest, enrich, train, score, playbook(-v2), auto, index-rag(-v2), check, setup-data")
+  ContainerDb(db, "siati.db", "SQLite / SQLAlchemy", "Host, Service, Vulnerability, ScoreML, Exploit, Report")
+  ContainerDb(intel, "Bases d'enrichissement", "SQLite + JSON", "threat_intel.db, cpe.db, exploits.db, nvd_cache/")
+  ContainerDb(faiss, "Index vectoriel", "FAISS + chunks.json", "Base de connaissances vectorisée (all-MiniLM-L6-v2)")
+  Container(models, "Artefacts ML", "joblib", "regresseur_xgb, classificateur_xgb, metrics_xgb.json")
+}
+
+System(builder, "SIATI Intel Builder", "ETL NVD / EPSS / KEV (machine connectée)")
+System_Ext(ollama, "Ollama", "LLM local — mistral :11434")
+System_Ext(redis, "Redis", "optionnel :6379")
+
+Rel(pentester, spa, "Utilise", "navigateur")
+Rel(pentester, cli, "Exécute des commandes", "terminal")
+Rel(spa, api, "Appels REST", "JSON/HTTP")
+Rel(api, db, "Lit / écrit", "SQLAlchemy")
+Rel(cli, db, "Lit / écrit", "SQLAlchemy")
+Rel(api, intel, "Lecture (enrichissement)")
+Rel(cli, intel, "Lecture + sync_manager")
+Rel(api, faiss, "Recherche top-k")
+Rel(cli, faiss, "Indexation + recherche")
+Rel(api, models, "Inférence XGBoost")
+Rel(api, ollama, "Génération / chat / traduction", "HTTP")
+Rel(cli, ollama, "Génération playbooks", "HTTP")
+Rel(api, redis, "Limitation de débit", "TCP")
+Rel(builder, intel, "Produit threat_intel.db", "transfert hors ligne")
+@enduml

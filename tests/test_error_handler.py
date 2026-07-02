@@ -224,7 +224,7 @@ class TestErrorDecorators:
         def ml_operation():
             raise FileNotFoundError("model.joblib")
 
-        with pytest.raises(MLLError) as exc_info:
+        with pytest.raises(MLError) as exc_info:
             ml_operation()
 
         assert "Model file not found" in str(exc_info.value.message)
@@ -235,7 +235,7 @@ class TestErrorDecorators:
         def ml_operation():
             raise Exception("Prediction failed")
 
-        with pytest.raises(MLLError) as exc_info:
+        with pytest.raises(MLError) as exc_info:
             ml_operation()
 
         assert exc_info.value.error_code == "ML_ERROR"

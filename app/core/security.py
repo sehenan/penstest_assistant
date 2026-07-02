@@ -1,6 +1,7 @@
 """
 Security Module - JWT Authentication and Rate Limiting
 """
+import os
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from fastapi import HTTPException, status, Depends, Request
@@ -11,11 +12,20 @@ import redis
 from functools import wraps
 import time
 import asyncio
+import inspect
 
 # Configuration
-SECRET_KEY = "your-secret-key-change-in-production"  # À mettre dans .env
+# La clé de signature JWT vient de l'environnement (SECRET_KEY). Le repli en dur
+# n'est qu'un défaut de développement local — À NE JAMAIS utiliser en production
+# (positionner SECRET_KEY dans .env ou les variables d'environnement du déploiement).
+SECRET_KEY = os.environ.get("SECRET_KEY", "dev-insecure-change-me")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+# Mode d'authentification. Par défaut OFF : la plateforme est conçue pour un usage
+# LOCAL / air-gap (API liée à 127.0.0.1, mono-utilisateur). Passer SIATI_REQUIRE_AUTH=1
+# pour un déploiement réseau : les routes protégées exigeront alors un token valide.
+REQUIRE_AUTH = os.environ.get("SIATI_REQUIRE_AUTH", "0").lower() in ("1", "true", "yes", "on")
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -39,6 +49,9 @@ class RateLimiter:
     def __init__(self, redis_client=None, use_redis=True):
         self.redis_client = redis_client
         self.use_redis = use_redis and redis_client is not None
+        # Stockage mémoire du fallback (quand Redis est indisponible).
+        # Attribut d'instance -> isolation propre entre limiteurs.
+        self.memory_store: Dict[str, list] = {}
 
     def is_allowed(self, key: str, limit: int, window: int) -> bool:
         """
@@ -78,23 +91,21 @@ class RateLimiter:
 
     def _check_memory(self, key: str, limit: int, window: int, current_time: int) -> bool:
         """In-memory rate limiting fallback"""
-        global rate_limit_store
-
-        if key not in rate_limit_store:
-            rate_limit_store[key] = []
+        if key not in self.memory_store:
+            self.memory_store[key] = []
 
         # Remove old entries
-        rate_limit_store[key] = [
-            timestamp for timestamp in rate_limit_store[key]
+        self.memory_store[key] = [
+            timestamp for timestamp in self.memory_store[key]
             if timestamp > current_time - window
         ]
 
         # Check limit
-        if len(rate_limit_store[key]) >= limit:
+        if len(self.memory_store[key]) >= limit:
             return False
 
         # Add current request
-        rate_limit_store[key].append(current_time)
+        self.memory_store[key].append(current_time)
         return True
 
 # Global rate limiter instance
@@ -154,6 +165,40 @@ async def get_current_user(
 
     return {"user_id": user_id, **payload}
 
+
+# Bearer « souple » : ne lève pas d'erreur automatique quand l'en-tête est absent,
+# ce qui permet les modes « public mais validé si présent » ci-dessous.
+optional_security = HTTPBearer(auto_error=False)
+
+
+def verify_token_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_security),
+) -> Optional[Dict[str, Any]]:
+    """Accès public si AUCUN token n'est fourni ; mais si un token EST fourni, il
+    doit être valide (sinon 401). Empêche qu'un jeton falsifié soit silencieusement
+    accepté sur les routes de lecture."""
+    if credentials is None:
+        return None
+    return decode_access_token(credentials.credentials)
+
+
+def require_auth(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_security),
+) -> Optional[Dict[str, Any]]:
+    """Garde des routes sensibles/destructives.
+    - SIATI_REQUIRE_AUTH activé (déploiement réseau) : un token valide est OBLIGATOIRE.
+    - Sinon (local/air-gap, défaut) : accès autorisé, mais tout token fourni est validé.
+    """
+    if credentials is None:
+        if REQUIRE_AUTH:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentification requise",
+            )
+        return None
+    return decode_access_token(credentials.credentials)
+
+
 def rate_limit(limit: int = 100, window: int = 60):
     """
     Rate limiting decorator
@@ -161,8 +206,18 @@ def rate_limit(limit: int = 100, window: int = 60):
     window: time window in seconds
     """
     def decorator(func):
+        # La fonction cible accepte-t-elle un paramètre `request` (ou **kwargs) ?
+        # Sinon, on consomme `request` pour le rate-limiting SANS le lui transmettre.
+        try:
+            _params = inspect.signature(func).parameters
+            _func_takes_request = "request" in _params or any(
+                p.kind == inspect.Parameter.VAR_KEYWORD for p in _params.values()
+            )
+        except (ValueError, TypeError):
+            _func_takes_request = True
+
         def check_rate_limit(args, kwargs):
-            # Get request from kwargs (FastAPI dependency)
+            # Get request from args or kwargs (FastAPI dependency)
             request = None
             for arg in args:
                 if isinstance(arg, Request):
@@ -170,7 +225,6 @@ def rate_limit(limit: int = 100, window: int = 60):
                     break
 
             if request is None:
-                # Try to get from kwargs
                 request = kwargs.get('request')
 
             if request:
@@ -184,6 +238,10 @@ def rate_limit(limit: int = 100, window: int = 60):
                         detail=f"Rate limit exceeded: {limit} requests per {window} seconds"
                     )
 
+            # N'expose pas `request` à une fonction qui ne le déclare pas.
+            if not _func_takes_request:
+                kwargs.pop('request', None)
+
         if asyncio.iscoroutinefunction(func):
             @wraps(func)
             async def async_wrapper(*args, **kwargs):
@@ -196,7 +254,7 @@ def rate_limit(limit: int = 100, window: int = 60):
                 check_rate_limit(args, kwargs)
                 return func(*args, **kwargs)
             return sync_wrapper
-            
+
     return decorator
 
 def admin_required(current_user: Dict[str, Any] = Depends(get_current_user)):

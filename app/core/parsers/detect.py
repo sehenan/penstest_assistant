@@ -8,8 +8,11 @@ from app.core.parsers.openvas_parser import parse_openvas
 from app.core.parsers.utils import load_xml_clean
 
 def detect_scan_format(path: str) -> str:
-    """Identifie le type de fichier (nmap | nessus | openvas | txt) via la racine XML ou l'extension."""
-    if path.lower().endswith(".txt"):
+    """Identifie le type de fichier (nmap | nessus | openvas | txt | pdf) via la racine XML ou l'extension."""
+    lower = str(path).lower()
+    if lower.endswith(".pdf"):
+        return "pdf"
+    if lower.endswith(".txt"):
         return "txt"
 
     root = load_xml_clean(path)
@@ -25,7 +28,7 @@ def detect_scan_format(path: str) -> str:
         return "openvas"
     raise ValueError(
         f"Format de scan non reconnu (élément racine: {local!r}). "
-        "Formats supportés: Nmap -oX, OpenVAS/GVM XML, Nessus .nessus, TXT (Nmap -oN)."
+        "Formats supportés: Nmap -oX, OpenVAS/GVM XML, Nessus .nessus, TXT (Nmap -oN), PDF."
     )
 
 
@@ -39,4 +42,7 @@ def parse_scan_file(path: str) -> list[dict]:
     if fmt == "txt":
         from app.core.parsers.txt_parser import parse_txt
         return parse_txt(path)
+    if fmt == "pdf":
+        from app.core.parsers.pdf_parser import parse_pdf
+        return parse_pdf(path)
     return parse_openvas(path)

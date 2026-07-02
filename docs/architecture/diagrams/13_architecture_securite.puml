@@ -1,0 +1,72 @@
+@startuml 13_architecture_securite
+title Architecture de sécurité — état réel (actif vs non câblé)
+!include _theme.puml
+
+' ---- Entrée (haut) ----
+[Client (SPA / CLI)] as CLIENT
+[Exposition locale :8505\n(uvicorn)] as BIND
+
+package "Périmètre et réseau" {
+  [Fonctionnement air-gapped :\naucun appel Internet à l'exécution] as AIR
+  [CORS allow_origins = "*"\n(permissif — point d'attention)] as CORS
+}
+
+[api_router] as API
+
+' ---- Couche API active (gauche) ----
+package "Couche API (active)" {
+  [RateLimiter — fenêtre glissante\npar IP, Redis avec repli mémoire\n(appliqué à /api/stats uniquement)] as RL
+  [Gestion d'erreurs globale\nerror_handler.py\n(pas de fuite de stack trace)] as ERR
+  [Upload isolé : fichier temporaire\n+ suppression systématique] as UPLOAD
+}
+
+' ---- Intégrité des sorties IA (droite) ----
+package "Intégrité des sorties IA (active)" {
+  [ReportValidator — cohérence\nCVE / service / version] as VAL
+  [Filtre de plage de versions\ncpe_to_cve.py (anti-hallucination)] as VFILT
+  [Température LLM 0,1 +\ncitations strictes (V2)] as TEMP
+}
+
+' ---- Données locales (bas) ----
+database "Données locales\nsiati.db, threat_intel.db,\ncpe.db, exploits.db" as DATA
+
+' ---- Authentification non câblée (à l'écart) ----
+package "Authentification (non câblée — échafaudage)" as AUTH {
+  [JWT HS256 — 30 min\ncreate / decode_access_token] as JWT
+  [bcrypt (passlib)] as BCRYPT
+  [get_current_user /\nadmin_required (rôle admin)] as ROLES
+  [SECRET_KEY codée en dur\n(placeholder — point d'attention)] as KEY
+}
+
+' ===== Flux d'entrée (haut -> bas) =====
+CLIENT -down-> BIND
+BIND -down-> API
+BIND -right-> CORS
+BIND -left-> AIR
+
+' ===== api_router vers la couche API active (gauche) =====
+API -left-> RL
+API -left-> ERR
+API -left-> UPLOAD
+
+' ===== api_router vers l'intégrité IA (droite) =====
+API -right-> VAL
+TEMP -up-> VAL
+
+' ===== Écritures / lectures données (bas) =====
+API -down-> DATA
+VFILT -down-> DATA : filtre lors de\nl'attribution CVE
+
+note bottom of AUTH
+  Aucune route /api/auth/login implémentée ;
+  aucun endpoint protégé par get_current_user.
+  Rôles prévus (user / admin) : code présent
+  dans security.py mais jamais appliqué.
+end note
+
+note bottom of AIR
+  L'enrichissement repose exclusivement
+  sur des bases locales fournies par le
+  bundle SIATI Intel Builder.
+end note
+@enduml

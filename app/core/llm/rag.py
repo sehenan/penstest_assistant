@@ -26,6 +26,27 @@ META_FILE = FAISS_DB_DIR / "metadata.json"
 EMBED_MODEL_NAME = "all-MiniLM-L6-v2"
 _embed_model = None
 
+# Cache mémoire de l'index FAISS + métadonnées : évite de relire le .index et de
+# re-parser metadata.json (23K chunks) du disque à CHAQUE requête RAG (chaque
+# message du chat). Chargé une seule fois par process, réutilisé ensuite.
+_faiss_index = None
+_faiss_texts = None
+
+
+def _get_faiss_index():
+    """Charge (une fois) et met en cache l'index FAISS et les textes associés."""
+    global _faiss_index, _faiss_texts
+    if _faiss_index is None:
+        try:
+            _faiss_index = faiss.read_index(str(INDEX_FILE))
+            with open(META_FILE, "r", encoding="utf-8") as f:
+                _faiss_texts = json.load(f)["texts"]
+            logger.info("Index FAISS chargé en cache mémoire (%d chunks).", len(_faiss_texts))
+        except Exception as e:
+            logger.exception("Échec du chargement de l'index FAISS : %s", e)
+            _faiss_index, _faiss_texts = None, None
+    return _faiss_index, _faiss_texts
+
 
 def _get_embed_model():
     global _embed_model
@@ -64,6 +85,10 @@ def build_index(documents: list[dict[str, str]]) -> None:
     with open(META_FILE, 'w', encoding='utf-8') as f:
         json.dump({"texts": texts, "metadata": metadata}, f, ensure_ascii=False, indent=2)
         
+    # Invalide le cache mémoire pour que la prochaine requête recharge le nouvel index.
+    global _faiss_index, _faiss_texts
+    _faiss_index, _faiss_texts = None, None
+
     logger.info("Index FAISS sauvegardé avec succès dans %s", FAISS_DB_DIR)
 
 
@@ -137,13 +162,12 @@ def retrieve_context(query: str, top_k: int = 3) -> str:
 
     if not INDEX_FILE.is_file() or not META_FILE.is_file():
         return ""
-        
+
     try:
-        index = faiss.read_index(str(INDEX_FILE))
-        with open(META_FILE, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            texts = data["texts"]
-            
+        index, texts = _get_faiss_index()
+        if index is None:
+            return ""
+
         model = _get_embed_model()
         q_emb = model.encode([query], convert_to_numpy=True)
         

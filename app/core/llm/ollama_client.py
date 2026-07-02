@@ -2,8 +2,11 @@
 Connecteur sécurisé à l'API locale d'Ollama.
 Invoque les LLM pré-configurés (Llama3, Mistral) depuis le socle air-gap local.
 """
+import json
 import logging
 import os
+from typing import Iterator
+
 import requests
 
 logger = logging.getLogger(__name__)
@@ -108,3 +111,51 @@ def chat_completion(messages: list[dict], system_prompt: str = "") -> str | None
     except Exception as e:
         logger.error("Erreur Chat Completion Ollama: %s", e)
         return None
+
+
+def chat_completion_stream(messages: list[dict], system_prompt: str = "") -> Iterator[str]:
+    """
+    Variante STREAMING du dialogue interactif : identique à chat_completion
+    (même modèle, mêmes options → qualité identique) mais émet la réponse token
+    par token au fur et à mesure de la génération. Réduit drastiquement la latence
+    perçue : le premier mot s'affiche en quelques secondes au lieu d'attendre la
+    réponse complète (~1500 tokens).
+    """
+    url = f"{OLLAMA_HOST}/api/chat"
+
+    full_messages = []
+    if system_prompt:
+        full_messages.append({"role": "system", "content": system_prompt})
+    full_messages.extend(messages)
+
+    payload = {
+        "model": OLLAMA_MODEL,
+        "messages": full_messages,
+        "stream": True,
+        "options": {
+            "temperature": 0.4,
+            "num_predict": 1500,
+            "repeat_penalty": 1.3,
+            "top_p": 0.9,
+            "top_k": 40,
+        },
+    }
+
+    try:
+        with requests.post(url, json=payload, timeout=OLLAMA_TIMEOUT, stream=True) as r:
+            r.raise_for_status()
+            for line in r.iter_lines(decode_unicode=True):
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except (ValueError, TypeError):
+                    continue
+                chunk = obj.get("message", {}).get("content", "")
+                if chunk:
+                    yield chunk
+                if obj.get("done"):
+                    break
+    except Exception as e:
+        logger.error("Erreur Chat Completion Stream Ollama: %s", e)
+        return

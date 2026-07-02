@@ -1,0 +1,75 @@
+@startuml 02_architecture_globale
+!include _theme.puml
+title Architecture globale en couches — SIATI
+caption Flux principal (auto-pilot). Le détail des appels figure sur le C4 niveau 3 (composants).
+
+' ---- Points d'entrée (haut) ----
+package "1 · Présentation" {
+  [SPA statique\napp/ui/index.html] as SPA
+  [CLI Typer\nmain.py -> app/cmd.py] as CLI
+}
+
+' ---- Couche API ----
+package "2 · Couche API" {
+  [Serveur FastAPI\napp/ui/server.py] as SRV
+  [api_router (REST)\napp/api/main_api.py] as API
+}
+
+' ---- Orchestration + cœur métier ----
+package "3 · Cœur métier — app/core" {
+  [FullPipeline\npipeline.py] as PIPE
+  [Parsers + détection\nnmap, nessus, openvas, txt] as PARSERS
+  [Normalizer\ndédoublonnage / upsert] as NORM
+  [Enrichissement\nnvd, cpe_to_cve, cpe,\nexploit_db, translate] as ENR
+  [ML\nDataManager, features,\npredict, evaluate] as ML
+  [LLM V1\nrag, ollama_client,\ngenerator, report_validator] as LLM1
+}
+
+' ---- Module LLM V2 ----
+package "4 · Module LLM V2 — app/module_llm" {
+  [Indexer / Retriever\n(FAISS, tiktoken)] as RAG2
+  [Generator / Orchestrator\n(citations strictes)] as GEN2
+}
+
+' ---- Données locales (bas) ----
+package "5 · Données locales" {
+  database "siati.db" as DB
+  database "threat_intel.db,\ncpe.db, exploits.db,\nnvd_cache/" as INTEL
+  database "faiss_index/ +\nknowledge_base/" as FAISSDB
+  database "model/*.joblib\n(XGBoost)" as MODELS
+}
+
+' ---- Transverse + services (côté) ----
+package "Transverse + services locaux" {
+  [security.py\nRateLimiter, JWT non câblé] as SEC
+  [cache.py / error_handler.py] as CACHE
+  [Ollama (mistral)] as OLLAMA
+  [Redis (optionnel)] as REDIS
+}
+
+' ===== Flux principal (solide) : entrée -> API -> pipeline =====
+SPA -down-> SRV : HTTP :8505
+SRV -down-> API
+CLI -down-> PIPE : auto / ingest / score
+CLI -down-> GEN2 : playbook-v2
+API -down-> PIPE : POST /api/ingest
+
+' ===== Pipeline séquentiel (colonne vertébrale) =====
+PIPE -down-> PARSERS
+PARSERS -down-> NORM
+PIPE -down-> ENR
+PIPE -down-> ML
+GEN2 -down-> RAG2
+
+' ===== Écritures données (vers le bas) =====
+NORM -down-> DB
+ENR -down-> INTEL
+ML -down-> MODELS
+LLM1 -down-> FAISSDB
+RAG2 -down-> FAISSDB
+
+' ===== Liens externes représentatifs (pointillés) =====
+LLM1 ..> OLLAMA : génération / traduction
+SEC ..> REDIS : compteurs de débit
+
+@enduml

@@ -1,0 +1,108 @@
+@startuml 11_modele_entite_association
+title Modèle entité-association — siati.db et threat_intel.db
+!include _theme.puml
+hide circle
+
+package "siati.db (SQLite)" {
+  entity hosts {
+    * id : INTEGER <<PK>>
+    --
+    * ip : TEXT <<UNIQUE>>
+    hostname : TEXT
+    os : TEXT
+    timestamp : DATETIME
+  }
+  entity services {
+    * id : INTEGER <<PK>>
+    --
+    * host_id : INTEGER <<FK hosts>>
+    * port : INTEGER
+    protocol : TEXT
+    service : TEXT
+    version : TEXT
+    banner : TEXT
+    cpe : TEXT <<index>>
+    .. UQ (host_id, port, protocol) ..
+  }
+  entity vulnerabilities {
+    * id : INTEGER <<PK>>
+    --
+    * service_id : INTEGER <<FK services>>
+    cve : TEXT <<index>>
+    cvss_score : REAL
+    cvss_vector : TEXT
+    cwe : TEXT
+    description : TEXT
+    epss_score : REAL
+    is_kev : BOOLEAN
+    source : TEXT
+    timestamp : DATETIME
+    .. UQ (service_id, cve, description) ..
+  }
+  entity scores_ml {
+    * id : INTEGER <<PK>>
+    --
+    * vuln_id : INTEGER <<FK vulnerabilities>>
+    score : REAL
+    label : TEXT
+    reasoning : TEXT <<XAI>>
+    confidence : REAL
+    timestamp : DATETIME
+  }
+  entity exploits {
+    * id : INTEGER <<PK>>
+    --
+    cve : TEXT <<index>>
+    exploit_db_id : TEXT
+    metasploit_module : TEXT
+    disponible : BOOLEAN
+  }
+  entity reports {
+    * id : INTEGER <<PK>>
+    --
+    vuln_id : INTEGER <<FK, nullable>>
+    * title : TEXT
+    content_md : TEXT
+    stage : TEXT
+    timestamp : DATETIME
+  }
+
+  hosts ||-down-o{ services
+  services ||-down-o{ vulnerabilities
+  vulnerabilities ||-down-o{ scores_ml
+  vulnerabilities |o-down-o{ reports
+  vulnerabilities }o.down.o{ exploits : jointure logique\npar chaîne CVE (sans FK)
+}
+
+package "threat_intel.db (lecture seule, bundle hors ligne)" {
+  entity intel_cve {
+    * id : INTEGER <<PK>>
+    --
+    cve_id : TEXT <<index>>
+    description : TEXT
+    cvss_v2_score : REAL
+    cvss_v3_score : REAL
+    cvss_v4_score : REAL
+    cvss_v3_vector : TEXT
+    cwe_id : TEXT
+  }
+  entity intel_epss {
+    * id : INTEGER <<PK>>
+    --
+    cve_id : TEXT <<index>>
+    epss_score : REAL
+    percentile : REAL
+  }
+  entity intel_kev {
+    * id : INTEGER <<PK>>
+    --
+    cve_id : TEXT <<index>>
+    vendor_project : TEXT
+    known_ransomware_campaign_use : TEXT
+  }
+}
+
+vulnerabilities }o.right.o{ intel_cve : enrichissement par cve_id
+vulnerabilities }o.right.o{ intel_epss : enrichissement par cve_id
+vulnerabilities }o.right.o{ intel_kev : enrichissement par cve_id
+@enduml

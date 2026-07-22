@@ -4,7 +4,6 @@ import numpy as np
 import faiss
 import logging
 logger = logging.getLogger(__name__)
-from sentence_transformers import SentenceTransformer
 from app.module_llm.rag.indexer import load_index
 
 class Retriever:
@@ -33,7 +32,8 @@ class Retriever:
                 from sentence_transformers import SentenceTransformer
                 logger.info(f"Chargement du modèle d'embedding pour retriever : {self.model_name}")
                 self._model = SentenceTransformer(self.model_name)
-            except ImportError:
+            except (ImportError, OSError, Exception) as e:
+                logger.warning(f"Modèle SentenceTransformer non disponible: {e}")
                 return None
         return self._model
 

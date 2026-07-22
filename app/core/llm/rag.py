@@ -10,14 +10,15 @@ from pathlib import Path
 # Évite le conflit OpenMP entre FAISS et PyTorch (segfault sinon sur macOS)
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 
+logger = logging.getLogger(__name__)
+
 try:
     import faiss
     from sentence_transformers import SentenceTransformer
     HAS_RAG_DEPS = True
-except ImportError:
+except (ImportError, OSError, Exception) as e:
+    logger.warning("Dépendances RAG (sentence-transformers / torch) non disponibles: %s", str(e))
     HAS_RAG_DEPS = False
-
-logger = logging.getLogger(__name__)
 
 FAISS_DB_DIR = Path("data") / "faiss_index"
 INDEX_FILE = FAISS_DB_DIR / "pentest.index"
@@ -158,7 +159,7 @@ def retrieve_context(query: str, top_k: int = 3) -> str:
     Lance une similarité Vectorielle (L2) sur l'index pour extraire le texte RAG optimal.
     """
     if not HAS_RAG_DEPS:
-        return "RAG local inactif : dépendances ou matériels non configurés."
+        return ""
 
     if not INDEX_FILE.is_file() or not META_FILE.is_file():
         return ""

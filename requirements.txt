@@ -15,7 +15,7 @@ typer==0.25.1
 gunicorn==26.0.0
 
 # --- Base de données ---
-sqlalchemy==2.0.22
+sqlalchemy>=2.0.36
 aiosqlite==0.22.1
 
 # --- Parsing & utilitaires ---
@@ -26,8 +26,8 @@ requests==2.34.2
 packaging==24.2
 
 # --- Données & Machine Learning ---
-pandas==2.1.1
-numpy==1.26.4
+pandas>=2.2.0
+numpy>=1.26.4
 # scikit-learn épinglé sur 1.6.1 : version qui a SÉRIALISÉ les modèles
 # data/model/*.joblib (CalibratedClassifierCV + XGBRegressor). Un écart de version
 # déclenche InconsistentVersionWarning et peut fausser l'inférence au dépicklage.

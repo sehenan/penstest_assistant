@@ -14,8 +14,8 @@ sys.path.append(str(ROOT))
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -57,11 +57,25 @@ app.add_middleware(
 )
 
 UI_DIR = Path(__file__).parent
+ASSETS_DIR = UI_DIR / "assets"
+
+# ── serve assets (logo.png, etc.) ─────────────────────────────────────────────
+if ASSETS_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
 
 # ── serve static HTML ─────────────────────────────────────────────────────────
 @app.get("/", response_class=HTMLResponse)
-async def serve_ui():
+async def serve_ui(request: Request):
+    """Redirige vers /login si le cookie d'authentification est absent."""
+    token = request.cookies.get("siati_token") or request.headers.get("Authorization", "").replace("Bearer ", "")
+    if not token:
+        return RedirectResponse(url="/login", status_code=302)
     html_path = UI_DIR / "index.html"
+    return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
+
+@app.get("/login", response_class=HTMLResponse)
+async def serve_login():
+    html_path = UI_DIR / "login.html"
     return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
 
 # ── Include API Routes ────────────────────────────────────────────────────────

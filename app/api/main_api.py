@@ -9,12 +9,55 @@ from pydantic import BaseModel
 
 from app.db.database import get_session
 from app.db.models import Host, Service, Vulnerability, ScoreML, Report, Exploit
-from app.core.security import rate_limit, verify_token_optional, require_auth
+from app.core.security import (
+    rate_limit, verify_token_optional, require_auth,
+    verify_password, get_password_hash, create_access_token, decode_access_token,
+    optional_security,
+)
+from fastapi.security import HTTPAuthorizationCredentials
 from app.core.error_handler import DatabaseError
 
 ROOT = Path(__file__).resolve().parents[2]
 
 api_router = APIRouter()
+
+
+# ── AUTH ─────────────────────────────────────────────────────────────────────
+# Credentials chargés depuis l'environnement.
+# SIATI_ADMIN_USER   : nom d'utilisateur (défaut : admin)
+# SIATI_ADMIN_PASSWORD : mot de passe en clair (sera haché en mémoire au démarrage)
+_ADMIN_USER = os.environ.get("SIATI_ADMIN_USER", "admin")
+_ADMIN_PASSWORD_PLAIN = os.environ.get("SIATI_ADMIN_PASSWORD", "admin")
+_ADMIN_PASSWORD_HASH = get_password_hash(_ADMIN_PASSWORD_PLAIN)
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+@api_router.post("/api/auth/login")
+@rate_limit(limit=10, window=60)
+def auth_login(payload: LoginRequest, request: Request):
+    """Authentification : retourne un JWT si les identifiants sont valides."""
+    if payload.username != _ADMIN_USER or not verify_password(payload.password, _ADMIN_PASSWORD_HASH):
+        raise HTTPException(
+            status_code=401,
+            detail="Identifiant ou mot de passe incorrect.",
+        )
+    token = create_access_token(data={"sub": payload.username, "role": "admin"})
+    return {"access_token": token, "token_type": "bearer"}
+
+
+@api_router.get("/api/auth/me")
+def auth_me(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_security),
+):
+    """Vérifie le token et renvoie les infos de l'utilisateur courant."""
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Token manquant.")
+    payload = decode_access_token(credentials.credentials)
+    return {"username": payload.get("sub"), "role": payload.get("role", "user")}
 
 
 # ── 0. HEALTH CHECK ───────────────────────────────────────────────────────────

@@ -335,7 +335,7 @@ def generate_playbook_for_vulnerability(
     exploit_info = ""
     if exploit and exploit.disponible:
         msf = f" — Module Metasploit : `{exploit.metasploit_module}`" if exploit.metasploit_module else ""
-        exploit_info = f"✅ Exploit public disponible{msf}"
+        exploit_info = f" Exploit public disponible{msf}"
     else:
         exploit_info = "Aucun exploit public référencé"
 
@@ -351,7 +351,7 @@ def generate_playbook_for_vulnerability(
         description=_rag_desc,
     )
 
-    kev_flag = "⚠️ OUI — activement exploité dans la nature (CISA KEV)" if vuln.is_kev else "Non"
+    kev_flag = " OUI — activement exploité dans la nature (CISA KEV)" if vuln.is_kev else "Non"
     epss_str = f"{vuln.epss_score:.4f} ({vuln.epss_score*100:.1f}% probabilité d'exploitation à 30j)" if vuln.epss_score else "N/A"
 
     # 3bis. Garde-fou d'impact dérivé du CVSS (empêche l'hallucination RCE sur un DoS, etc.)
@@ -406,7 +406,7 @@ def generate_playbook_for_vulnerability(
     is_valid = validation["valid"]
     if not is_valid:
         for issue in validation["issues"]:
-            logger.warning("⚠️ [%s] %s", issue["code"], issue["detail"])
+            logger.warning(" [%s] %s", issue["code"], issue["detail"])
         status_tag = " [VALIDATION ÉCHOUÉE]"
     else:
         status_tag = ""
@@ -431,28 +431,16 @@ def generate_playbook_for_vulnerability(
             f"- **Description** : {vuln.description or 'Indisponible dans la base locale.'}\n\n"
             f"{COMPLETION_MARKER}\n"
         )
-        logger.warning("⛔ Contenu LLM bloqué pour %s (contradiction d'impact CVSS).", cve)
+        logger.warning(" Contenu LLM bloqué pour %s (contradiction d'impact CVSS).", cve)
 
     # 7. Gestion du Rapport (UPSERT)
     from datetime import datetime
-    titre = f"[{titre_prefix}] {host.ip}:{svc.port} - {cve}{status_tag}"
+    titre = f"{host.ip}:{svc.port} - {cve}"
     
-    header = (
-        f"| Attribut | Valeur |\n"
-        f"| :--- | :--- |\n"
-        f"| **Cible** | `{host.ip}` |\n"
-        f"| **Service** | `{svc.service} {svc.version or ''}` |\n"
-        f"| **Port** | `{svc.port}/{svc.protocol}` |\n"
-        f"| **Vérification** | {cve} |\n"
-        f"| **Date** | {datetime.now().strftime('%Y-%m-%d %H:%M')} |\n\n"
-        f"---\n\n"
-    )
-
     content_draft = (
         f"> [!IMPORTANT]\n"
         f"> **ÉTAPE: {mode.upper()}**\n"
         f"> Ce document est une suggestion générée par IA. État Validation: {'✅ OK' if is_valid else '❌ Incomplet'}\n\n"
-        f"{header}"
         f"{generated_md}"
     )
     

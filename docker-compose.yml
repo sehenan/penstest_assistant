@@ -24,6 +24,10 @@ services:
     environment:
       SIATI_HOST: 0.0.0.0
       SIATI_PORT: "8505"
+      SIATI_REQUIRE_AUTH: "1"
+      SECRET_KEY: ${SECRET_KEY:-siati-super-secret-key-change-in-production-2024}
+      SIATI_ADMIN_USER: ${SIATI_ADMIN_USER:-admin}
+      SIATI_ADMIN_PASSWORD: ${SIATI_ADMIN_PASSWORD:-admin}
       PENTEST_DB_URL: sqlite:////app/data/pentest.db
       OLLAMA_HOST: http://ollama:11434
       OLLAMA_MODEL: llama3

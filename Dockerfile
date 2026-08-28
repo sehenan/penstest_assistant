@@ -3,6 +3,10 @@
 # SIATI — Système Intelligent d'Assistance aux Tests d'Intrusion
 # Image Docker multi-stage, air-gap au runtime, utilisateur non-root.
 # Python 3.12 (aligné sur l'environnement de développement validé).
+#
+# Usage :
+#   docker build -t siati:latest .
+#   docker compose up -d --build
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
@@ -19,13 +23,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 #   - pkg-config + libcairo2-dev : requis pour compiler pycairo
 #     (tiré par xhtml2pdf -> svglib -> rlpycairo pour l'export PDF des rapports).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        gcc \
-        g++ \
-        make \
-        libffi-dev \
-        libssl-dev \
-        pkg-config \
-        libcairo2-dev \
+    gcc \
+    g++ \
+    make \
+    libffi-dev \
+    libssl-dev \
+    pkg-config \
+    libcairo2-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Environnement virtuel dédié, copié tel quel dans l'image finale.
@@ -39,7 +43,7 @@ RUN pip install --upgrade pip setuptools wheel
 RUN pip install torch==2.12.0 --index-url https://download.pytorch.org/whl/cpu
 
 # Dépendances applicatives de production.
-COPY requirements.txt .
+COPY requirements/base.txt requirements.txt
 RUN pip install -r requirements.txt
 
 # ------------------------------------------------------------------------------
@@ -56,8 +60,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # curl     : requis par le HEALTHCHECK.
 # libcairo2 : lib runtime chargée par pycairo (export PDF via xhtml2pdf/svglib).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        curl \
-        libcairo2 \
+    curl \
+    libcairo2 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -80,9 +84,11 @@ RUN useradd --create-home --uid 1000 siati \
     && chown -R siati:siati /app /opt/hf_cache
 USER siati
 
-# --- Configuration runtime ---
-ENV SIATI_HOST=0.0.0.0 \
+# --- Configuration runtime par défaut (surchargeables via .env ou compose) ---
+ENV SIATI_ENV=production \
+    SIATI_HOST=0.0.0.0 \
     SIATI_PORT=8505 \
+    SIATI_WORKERS=2 \
     PENTEST_DB_URL=sqlite:////app/data/pentest.db \
     OLLAMA_HOST=http://127.0.0.1:11434 \
     OLLAMA_MODEL=llama3 \
@@ -93,10 +99,18 @@ ENV SIATI_HOST=0.0.0.0 \
 
 EXPOSE 8505
 
-# Sonde de santé sur un endpoint réel et léger.
+# Sonde de santé sur l'endpoint le plus léger.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -fsS http://localhost:8505/api/stats || exit 1
+    CMD curl -fsS http://localhost:${SIATI_PORT}/health || exit 1
 
-# `-web` est réécrit en commande `ui` par main.py ; l'écoute 0.0.0.0
-# provient de SIATI_HOST (indispensable derrière un port publié Docker).
-CMD ["python", "main.py", "-web"]
+# Production : Gunicorn + workers Uvicorn pour la concurrence et la robustesse.
+# Development : remplacer cette CMD par "python main.py -web" pour le rechargement auto.
+CMD ["sh", "-c", "gunicorn app.ui.server:app \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --workers ${SIATI_WORKERS} \
+    --bind ${SIATI_HOST}:${SIATI_PORT} \
+    --timeout 300 \
+    --keep-alive 5 \
+    --access-logfile - \
+    --error-logfile - \
+    --log-level info"]

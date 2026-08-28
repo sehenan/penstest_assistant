@@ -93,45 +93,86 @@ SIATI est un **assistant de tests d'intrusion moderne propulsé par l'IA** qui c
 
 ```
 penstest_assistant/
-├── app/
-│   ├── api/                    # Couche API
-│   │   ├── schemas.py         # Modèles Pydantic
-│   │   ├── documentation.py   # Documentation API
-│   │   └── main_api.py       # Points de terminaison API
-│   ├── core/                   # Logique métier principale
-│   │   ├── security.py        # Authentification & sécurité
-│   │   ├── error_handler.py   # Gestion des erreurs
-│   │   ├── cache.py           # Système de cache
-│   │   ├── async_db.py        # Opérations BDD asynchrones
-│   │   ├── ml/                # Machine learning
-│   │   ├── llm/               # Intégration LLM
-│   │   ├── parsers/           # Parseurs de scan
-│   │   └── enrichment/        # Enrichissement des données
-│   ├── db/                     # Couche base de données
-│   │   ├── models.py          # Modèles SQLAlchemy
-│   │   └── database.py        # Configuration de la BDD
-│   ├── ui/                     # Interface Web
-│   │   ├── server.py          # Application FastAPI
-│   │   └── dashboard.py       # Tableau de bord Streamlit
-│   └── module_llm/            # Modules LLM
-│       ├── rag/               # Système RAG
-│       └── llm/               # Opérations LLM
-├── tests/                     # Suite de tests
-│   ├── test_security.py
-│   ├── test_error_handler.py
-│   └── test_integration_e2e.py
-├── data/                      # Dossier de données
-│   ├── model/                # Modèles ML
-│   ├── knowledge_base/       # Base de connaissances RAG
-│   └── faiss_index/          # Index vectoriels
-├── logs/                      # Journaux de l'application
-├── cache/                     # Stockage du cache
-├── Dockerfile                 # Configuration Docker
-├── docker-compose.yml         # Orchestration des services
-├── deploy.sh                 # Script de déploiement
-├── requirements.txt           # Dépendances Python
-├── config.yaml               # Configuration de l'application
-└── main.py                   # Point d'entrée de l'application
+│
+├── app/                        # Code source principal
+│   ├── api/
+│   │   ├── main_api.py         # Assembleur des routeurs
+│   │   ├── routers/            # Routeurs FastAPI séparés
+│   │   │   ├── auth.py         # JWT login / /api/auth
+│   │   │   ├── system.py       # /health, /api/audit, /api/clear-db
+│   │   │   ├── stats.py        # /api/stats
+│   │   │   ├── hosts.py        # /api/hosts
+│   │   │   ├── vulnerabilities.py  # /api/vulns
+│   │   │   ├── reports.py      # /api/reports + export PDF
+│   │   │   ├── playbooks.py    # /api/generate, /api/chat (stream)
+│   │   │   ├── scans.py        # /api/ingest (upload scans)
+│   │   │   └── ml.py           # /api/score, /api/performance
+│   │   └── schemas.py          # Modèles Pydantic de validation
+│   │
+│   ├── core/                   # Logique métier
+│   │   ├── settings.py         # ⭐ Configuration centralisée (pydantic-settings)
+│   │   ├── pipeline.py         # Pipeline auto-pilot complet
+│   │   ├── parsers/            # Parseurs Nmap, Nessus, OpenVAS
+│   │   ├── enrichment/         # NVD, CPE, Exploit-DB
+│   │   ├── ml/                 # XGBoost scoring + SHAP
+│   │   └── llm/                # Ollama client + RAG
+│   │
+│   ├── utils/                  # Utilitaires transverses
+│   │   ├── security.py         # JWT, hachage, rate-limiting
+│   │   ├── error_handler.py    # Gestionnaires d'erreurs FastAPI
+│   │   └── cache.py            # Cache Redis / in-memory
+│   │
+│   ├── db/                     # Base de données
+│   │   ├── models.py           # SQLAlchemy : Host→Service→Vulnerability→ScoreML
+│   │   └── database.py         # Session SQLite
+│   │
+│   ├── templates/              # HTML servi par FastAPI
+│   │   ├── index.html          # Dashboard principal
+│   │   └── login.html          # Page de connexion
+│   │
+│   ├── static/                 # CSS/JS personnalisés (à venir)
+│   │
+│   ├── ui/
+│   │   ├── server.py           # Application FastAPI principale
+│   │   └── assets/             # Images, logos
+│   │
+│   └── module_llm/             # Stack RAG V2 (playbook-v2 / index-rag-v2)
+│       ├── rag/                # Indexation + retrieval FAISS
+│       └── llm/                # Génération avec citations sources
+│
+├── tests/                      # Suite de tests (pytest)
+├── scripts/                    # Scripts utilitaires
+│   ├── deploy.sh               # Déploiement (build/start/logs/restart)
+│   ├── build_index.py          # Indexation base de connaissance RAG
+│   ├── fix_db.py               # Correction de la BDD
+│   ├── train_model_corrige.py  # Entraînement XGBoost
+│   ├── start_app.bat           # Lancement rapide (Windows)
+│   └── start_hacktricks.bat    # Indexation HackTricks (Windows)
+│
+├── data/                       # Données (non versionnées pour les BDDs runtime)
+│   ├── pentest.db              # Base SQLite principale (ignorée par git)
+│   ├── cpe.db                  # Base CPE de référence
+│   ├── exploits.db             # Base Exploit-DB de référence
+│   ├── model/                  # Modèles ML (joblib)
+│   ├── faiss_index/            # Index vectoriels FAISS
+│   └── knowledge_base/         # Documents RAG
+│
+├── docs/                       # Documentation
+│   ├── README_DOCKER.md        # Guide déploiement Docker
+│   ├── README_FINAL.md         # Documentation complète
+│   └── assets/                 # Diagrammes, captures d'architecture
+│
+├── logs/                       # Journaux (ignorés par git)
+├── scratch/                    # Fichiers temporaires (ignorés par git)
+│
+├── main.py                     # Point d'entrée CLI
+├── Dockerfile                  # Image Docker multi-stage (prod)
+├── docker-compose.yml          # Orchestration : SIATI + Ollama + Redis
+├── .env.example                # ⭐ Template de configuration (copier → .env)
+├── requirements.txt            # Dépendances production
+├── requirements-dev.txt        # Dépendances développement
+├── config.yaml                 # Config RAG V2 (legacy, remplacé par .env)
+└── pytest.ini                  # Configuration pytest
 ```
 
 ---

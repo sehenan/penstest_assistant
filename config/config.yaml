@@ -1,18 +1,15 @@
-# === FICHIER : config.yaml ===
-# Configuration du module LLM V2 / RAG (commandes CLI playbook-v2, index-rag-v2).
+# === config.yaml ===
+# Paramètres de compatibilité pour les commandes CLI legacy (playbook-v2, index-rag-v2).
 #
-# NB IMPORTANT : le cœur applicatif (API web, chat, playbook standard) NE lit PAS
-# ce fichier. Il se configure par variables d'environnement :
-#   - Base   : PENTEST_DB_URL / SIATI_DB_PATH  (défaut : data/pentest.db)
-#   - Ollama : OLLAMA_HOST, OLLAMA_MODEL, OLLAMA_TIMEOUT  (cf. app/core/llm/ollama_client.py)
-# Les valeurs ci-dessous ne s'appliquent qu'à la voie V2 (app/module_llm).
+# NOTE : La configuration principale de l'application (API web, ML, Ollama)
+# est gérée par les variables d'environnement via app/core/settings.py.
+# Copiez .env.example → .env pour les surcharger.
+# Ce fichier ne concerne que la voie V2 CLI (app/module_llm/).
 
-# Paramètres de la base de données
 database:
-  path: "data/pentest.db"   # base runtime réelle (aligné sur app/db/database.py)
+  path: "data/pentest.db"
   top_n_vulns: 10
 
-# Paramètres RAG (Recherche Vectorielle)
 rag:
   knowledge_dir: "data/knowledge_base"
   output_dir: "data/faiss_index"
@@ -23,15 +20,13 @@ rag:
   chunk_overlap: 50
   top_k: 5
 
-# Paramètres LLM (Ollama)
 llm:
   ollama_url: "http://localhost:11434"
-  model: "llama3"  # mistral, llama3, phi3, etc.
+  model: "llama3"
   timeout_seconds: 120
   max_tokens: 2048
-  temperature: 0.1  # Basse pour limiter l'hallucination
+  temperature: 0.1
 
-# Journalisation
 logging:
   level: "INFO"
   file: "logs/llm_module.log"

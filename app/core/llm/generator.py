@@ -178,6 +178,12 @@ R8. VERSIONS LOGICIELLES
         [VERSION AFFECTÉE — se référer à l'advisory CVE officiel]
     - NE PAS inventer de numéros de version (ex: "2.4.49") absents du CONTEXTE.
     - Les versions corrigées doivent être sourcées depuis le CONTEXTE ou la description CVE.
+
+R9. LANGUE ET TRADUCTION
+    - Le rapport ENTIER doit être rédigé en FRANÇAIS professionnel.
+    - INTERDIT ABSOLU d'utiliser du "Franglais" ou de mélanger l'anglais et le français.
+    - Les termes techniques standard (payload, exploit, reverse shell) sont tolérés, mais les phrases doivent être grammaticalement parfaites en français.
+    - Traduire de manière fluide tout contexte issu de la base de données (qui est souvent en anglais) vers un français de qualité.
 """
 
 AUDIT_PROMPT_EXTENSION = """
@@ -437,12 +443,7 @@ def generate_playbook_for_vulnerability(
     from datetime import datetime
     titre = f"{host.ip}:{svc.port} - {cve}"
     
-    content_draft = (
-        f"> [!IMPORTANT]\n"
-        f"> **ÉTAPE: {mode.upper()}**\n"
-        f"> Ce document est une suggestion générée par IA. État Validation: {'✅ OK' if is_valid else '❌ Incomplet'}\n\n"
-        f"{generated_md}"
-    )
+    content_draft = generated_md.replace(COMPLETION_MARKER, "").strip()
     
     report = db_session.query(Report).filter(Report.vuln_id == vuln_id, Report.stage == mode).first()
 

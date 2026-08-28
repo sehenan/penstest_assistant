@@ -147,7 +147,7 @@ def playbook_v2(vuln_id: int, top_k: int = 5):
     """[Phase 4 PRO] Génère un playbook RAG STRICT avec citations de sources."""
     import yaml
     try:
-        with open("config.yaml", "r") as f:
+        with open("config/config.yaml", "r") as f:
             config = yaml.safe_load(f)
         
         from app.db.database import get_session
@@ -288,7 +288,7 @@ def index_rag_v2():
     from app.module_llm.rag.indexer import Indexer
     
     try:
-        with open("config.yaml", "r") as f:
+        with open("config/config.yaml", "r") as f:
             config = yaml.safe_load(f)
         
         indexer = Indexer(config)

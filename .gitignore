@@ -60,3 +60,7 @@ data/Dataset/nvdcve-2.0-2022.json (2).zip
 data/faiss_index/chunks.json
 
 .DS_Store
+
+# Dossiers temporaires et fichiers de travail (non versionnés)
+scratch/
+captures_pfe/

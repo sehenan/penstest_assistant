@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIATI — Connexion</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *,
+    *::before,
+    *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    /* ── Thème sombre (défaut) ── */
+    :root {
+      --orange: #f97316;
+      --orange-dark: #ea580c;
+      --bg: #080b12;
+      --card-bg: rgba(255, 255, 255, 0.03);
+      --card-border: rgba(255, 255, 255, 0.07);
+      --input-bg: rgba(255, 255, 255, 0.04);
+      --input-border: rgba(255, 255, 255, 0.1);
+      --text: #f0f0f0;
+      --muted: #6b7280;
+      --hint-bg: rgba(255, 255, 255, 0.02);
+      --hint-border: rgba(255, 255, 255, 0.05);
+      --orb-opacity: 0.18;
+    }
+
+    /* ── Thème clair ── */
+    :root[data-theme='light'] {
+      --bg: #f1f5f9;
+      --card-bg: rgba(255, 255, 255, 0.85);
+      --card-border: rgba(0, 0, 0, 0.08);
+      --input-bg: rgba(0, 0, 0, 0.03);
+      --input-border: rgba(0, 0, 0, 0.12);
+      --text: #0f172a;
+      --muted: #64748b;
+      --hint-bg: rgba(0, 0, 0, 0.02);
+      --hint-border: rgba(0, 0, 0, 0.06);
+      --orb-opacity: 0.08;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* ── Animated background ── */
+    .bg-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(120px);
+      opacity: 0.18;
+      animation: drift 14s ease-in-out infinite alternate;
+    }
+
+    .orb-1 {
+      width: 520px;
+      height: 520px;
+      background: radial-gradient(circle, #f97316, #b45309);
+      top: -180px;
+      left: -160px;
+      animation-duration: 16s;
+    }
+
+    .orb-2 {
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, #7c3aed, #1d4ed8);
+      bottom: -160px;
+      right: -120px;
+      animation-duration: 20s;
+      animation-delay: -6s;
+    }
+
+    .orb-3 {
+      width: 260px;
+      height: 260px;
+      background: radial-gradient(circle, #06b6d4, #0284c7);
+      top: 55%;
+      left: 60%;
+      animation-duration: 12s;
+      animation-delay: -3s;
+      opacity: 0.1;
+    }
+
+    @keyframes drift {
+      0% {
+        transform: translate(0, 0) scale(1);
+      }
+
+      50% {
+        transform: translate(40px, 30px) scale(1.05);
+      }
+
+      100% {
+        transform: translate(-30px, 50px) scale(0.95);
+      }
+    }
+
+    .bg-grid {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background-image: linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+
+    /* ── Card ── */
+    .card {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 400px;
+      margin: 20px;
+      padding: 44px 40px 40px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.03) inset, 0 32px 80px rgba(0, 0, 0, 0.5), 0 0 60px rgba(249, 115, 22, 0.04);
+      animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(24px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* ── Header ── */
+    .header {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+
+    .logo-img {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      margin-bottom: 16px;
+    }
+
+    @keyframes pulse-badge {
+
+      0%,
+      100% {
+        box-shadow: 0 8px 24px rgba(249, 115, 22, 0.35);
+      }
+
+      50% {
+        box-shadow: 0 8px 36px rgba(249, 115, 22, 0.55);
+      }
+    }
+
+    .logo-badge svg {
+      width: 26px;
+      height: 26px;
+      fill: none;
+      stroke: #fff;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .header h1 {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .header p {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    /* ── Form ── */
+    .form {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .input-group label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #9ca3af;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+    }
+
+    .input-wrap {
+      position: relative;
+    }
+
+    .input-wrap .field-icon {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 15px;
+      height: 15px;
+      stroke: var(--muted);
+      stroke-width: 1.8;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      pointer-events: none;
+      transition: stroke 0.2s;
+      z-index: 1;
+    }
+
+    .input-wrap input {
+      width: 100%;
+      padding: 12px 40px 12px 40px;
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+    }
+
+    .input-wrap input::placeholder {
+      color: #374151;
+    }
+
+    .input-wrap input:focus {
+      border-color: var(--orange);
+      background: rgba(249, 115, 22, 0.04);
+      box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+    }
+
+    .input-wrap:focus-within .field-icon {
+      stroke: var(--orange);
+    }
+
+    .toggle-pwd {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      transition: color 0.2s;
+    }
+
+    .toggle-pwd:hover {
+      color: var(--orange);
+    }
+
+    .toggle-pwd svg {
+      width: 15px;
+      height: 15px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    /* ── Error ── */
+    .error {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 11px 14px;
+      background: rgba(239, 68, 68, 0.08);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      border-radius: 8px;
+      color: #f87171;
+      font-size: 13px;
+    }
+
+    .error.visible {
+      display: flex;
+      animation: shake 0.35s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+    }
+
+    @keyframes shake {
+
+      10%,
+      90% {
+        transform: translateX(-2px);
+      }
+
+      20%,
+      80% {
+        transform: translateX(4px);
+      }
+
+      30%,
+      50%,
+      70% {
+        transform: translateX(-4px);
+      }
+
+      40%,
+      60% {
+        transform: translateX(4px);
+      }
+    }
+
+    .error svg {
+      flex-shrink: 0;
+      width: 15px;
+      height: 15px;
+      stroke: #f87171;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    /* ── Button ── */
+    .btn {
+      position: relative;
+      margin-top: 6px;
+      padding: 13px;
+      background: linear-gradient(135deg, #f97316, #ea580c);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      letter-spacing: 0.3px;
+      cursor: pointer;
+      overflow: hidden;
+      transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 4px 20px rgba(249, 115, 22, 0.3);
+    }
+
+    .btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), transparent);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .btn:hover:not(:disabled)::before {
+      opacity: 1;
+    }
+
+    .btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 28px rgba(249, 115, 22, 0.4);
+    }
+
+    .btn:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-inner {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .spinner {
+      display: none;
+      width: 15px;
+      height: 15px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .btn.loading .spinner {
+      display: block;
+    }
+
+    /* ── Theme toggle ── */
+    #theme-toggle-login {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 100;
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      border: 1px solid var(--card-border);
+      background: var(--card-bg);
+      color: var(--text);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(12px);
+      transition: all 0.2s;
+    }
+
+    #theme-toggle-login:hover {
+      border-color: var(--orange);
+      color: var(--orange);
+      transform: scale(1.08);
+    }
+
+    #theme-toggle-login svg {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.6;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .hint {
+      margin-top: 22px;
+      padding: 12px 14px;
+      background: var(--hint-bg);
+      border: 1px solid var(--hint-border);
+      border-radius: 8px;
+      font-size: 12px;
+      color: #4b5563;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .hint svg {
+      flex-shrink: 0;
+      width: 13px;
+      height: 13px;
+      stroke: #6b7280;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .hint code {
+      color: #f97316;
+      background: rgba(249, 115, 22, 0.08);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Bouton toggle thème -->
+  <button id="theme-toggle-login" title="Changer de thème" onclick="toggleTheme()" aria-label="Changer de thème">
+    <svg id="icon-sun-l" viewBox="0 0 24 24" style="display:none">
+      <circle cx="12" cy="12" r="5" />
+      <line x1="12" y1="1" x2="12" y2="3" />
+      <line x1="12" y1="21" x2="12" y2="23" />
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+      <line x1="1" y1="12" x2="3" y2="12" />
+      <line x1="21" y1="12" x2="23" y2="12" />
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+    </svg>
+    <svg id="icon-moon-l" viewBox="0 0 24 24">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </svg>
+  </button>
+
+  <div class="bg-canvas">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+  </div>
+  <div class="bg-grid"></div>
+
+  <div class="card">
+    <div class="header">
+      <img src="data:image/png;base64,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" class="logo-img" alt="SIATI logo">
+      <h1>SIATI</h1>
+      <p>Assistance aux tests d'intrusion</p>
+    </div>
+
+    <div class="error" id="error" role="alert">
+      <svg viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="8" x2="12" y2="12" />
+        <line x1="12" y1="16" x2="12.01" y2="16" />
+      </svg>
+      <span id="error-text">Identifiants incorrects</span>
+    </div>
+
+    <form class="form" id="login-form" onsubmit="handleLogin(event)" novalidate>
+
+      <div class="input-group">
+        <label for="username">Nom d'utilisateur</label>
+        <div class="input-wrap">
+          <svg class="field-icon" viewBox="0 0 24 24">
+            <circle cx="12" cy="8" r="4" />
+            <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+          </svg>
+          <input type="text" id="username" placeholder="admin" required autocomplete="username">
+        </div>
+      </div>
+
+      <div class="input-group">
+        <label for="password">Mot de passe</label>
+        <div class="input-wrap">
+          <svg class="field-icon" viewBox="0 0 24 24">
+            <rect x="3" y="11" width="18" height="11" rx="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+          <input type="password" id="password" placeholder="••••••••" required autocomplete="current-password">
+          <button type="button" class="toggle-pwd" id="toggle-pwd" aria-label="Afficher le mot de passe">
+            <svg id="eye-icon" viewBox="0 0 24 24">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <button type="submit" class="btn" id="btn">
+        <div class="btn-inner">
+          <div class="spinner" id="spinner"></div>
+          <span id="btn-text">Se connecter</span>
+        </div>
+      </button>
+    </form>
+
+
+  </div>
+
+  <script>
+    // ── THEME ──
+    (function () {
+      const saved = localStorage.getItem('siati_theme') || 'dark';
+      if (saved === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      document.addEventListener('DOMContentLoaded', () => {
+        const s = document.getElementById('icon-sun-l');
+        const m = document.getElementById('icon-moon-l');
+        if (saved === 'light') { s.style.display = 'block'; m.style.display = 'none'; }
+      });
+    })();
+
+    function toggleTheme() {
+      const root = document.documentElement;
+      const isLight = root.getAttribute('data-theme') === 'light';
+      const next = isLight ? 'dark' : 'light';
+      if (next === 'light') root.setAttribute('data-theme', 'light');
+      else root.removeAttribute('data-theme');
+      localStorage.setItem('siati_theme', next);
+      const s = document.getElementById('icon-sun-l');
+      const m = document.getElementById('icon-moon-l');
+      s.style.display = next === 'light' ? 'block' : 'none';
+      m.style.display = next === 'light' ? 'none' : 'block';
+    }
+
+    /* ── Toggle password visibility ── */
+    const toggleBtn = document.getElementById('toggle-pwd');
+    const pwdInput = document.getElementById('password');
+    const eyeIcon = document.getElementById('eye-icon');
+    const eyeOpen = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`;
+    const eyeClosed = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>`;
+
+    toggleBtn.addEventListener('click', () => {
+      const hidden = pwdInput.type === 'password';
+      pwdInput.type = hidden ? 'text' : 'password';
+      eyeIcon.innerHTML = hidden ? eyeClosed : eyeOpen;
+    });
+
+    const existing = localStorage.getItem('siati_token');
+    if (existing) {
+      fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + existing } })
+        .then(r => { if (r.ok) window.location.href = '/'; })
+        .catch(() => { });
+    }
+
+    /* ── Login handler ── */
+    async function handleLogin(e) {
+      e.preventDefault();
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      const btn = document.getElementById('btn');
+      const btnText = document.getElementById('btn-text');
+      const error = document.getElementById('error');
+      const errText = document.getElementById('error-text');
+
+      btn.disabled = true;
+      btn.classList.add('loading');
+      btnText.textContent = 'Connexion…';
+      error.classList.remove('visible');
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          localStorage.setItem('siati_token', data.access_token);
+          document.cookie = `siati_token=${data.access_token}; path=/; SameSite=Lax`;
+          btnText.textContent = 'Connexion réussie…';
+          window.location.href = '/';
+        } else {
+          const body = await res.json().catch(() => ({}));
+          errText.textContent = body.detail || 'Identifiant ou mot de passe incorrect.';
+          error.classList.remove('visible');
+          void error.offsetWidth;
+          error.classList.add('visible');
+        }
+      } catch {
+        errText.textContent = 'Impossible de joindre le serveur.';
+        error.classList.remove('visible');
+        void error.offsetWidth;
+        error.classList.add('visible');
+      } finally {
+        btn.disabled = false;
+        btn.classList.remove('loading');
+        btnText.textContent = 'Se connecter';
+      }
+    }
+
+    document.getElementById('username').focus();
+  </script>
+</body>
+
+</html>

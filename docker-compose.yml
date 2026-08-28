@@ -22,24 +22,28 @@ services:
     ports:
       - "8505:8505"
     environment:
+      SIATI_ENV: production
       SIATI_HOST: 0.0.0.0
       SIATI_PORT: "8505"
-      SIATI_REQUIRE_AUTH: "1"
-      SECRET_KEY: ${SECRET_KEY:-siati-super-secret-key-change-in-production-2024}
+      SIATI_WORKERS: "2"
+      SIATI_REQUIRE_AUTH: "0"
+      SECRET_KEY: ${SECRET_KEY:-change-this-in-production-min-32-chars!!}
       SIATI_ADMIN_USER: ${SIATI_ADMIN_USER:-admin}
-      SIATI_ADMIN_PASSWORD: ${SIATI_ADMIN_PASSWORD:-admin}
+      SIATI_ADMIN_PASSWORD: ${SIATI_ADMIN_PASSWORD:-changeme}
       PENTEST_DB_URL: sqlite:////app/data/pentest.db
       OLLAMA_HOST: http://ollama:11434
-      OLLAMA_MODEL: llama3
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3}
       OLLAMA_TIMEOUT: "1800"
       REDIS_HOST: redis
       REDIS_PORT: "6379"
+      LOG_LEVEL: INFO
+      # CORS : utiliser "*" en mode air-gap/lab.
+      # En production internet, lister les origines explicites : "https://siati.mondomaine.com"
+      SIATI_CORS_ORIGINS: "*"
     volumes:
       # Données persistantes (BDD SQLite, FAISS, intel, modèle ML, base de connaissance)
       - ./data:/app/data
       - ./logs:/app/logs
-      # Surcharge de configuration sans rebuild (paramètres RAG, etc.)
-      - ./config.yaml:/app/config.yaml:ro
     depends_on:
       ollama:
         condition: service_healthy
@@ -51,7 +55,8 @@ services:
     networks:
       - siati-network
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8505/api/stats"]
+      # /health est la sonde légère (pas de lecture DB lourde)
+      test: [ "CMD", "curl", "-fsS", "http://localhost:8505/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -72,7 +77,7 @@ services:
       - siati-network
     healthcheck:
       # L'image ollama ne contient pas curl ; on utilise la CLI intégrée.
-      test: ["CMD", "ollama", "list"]
+      test: [ "CMD", "ollama", "list" ]
       interval: 10s
       timeout: 10s
       retries: 5
@@ -89,8 +94,9 @@ services:
         condition: service_healthy
     environment:
       OLLAMA_HOST: http://ollama:11434
-    entrypoint: ["/bin/sh", "-c"]
-    command: ["ollama pull llama3"]
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3}
+    entrypoint: [ "/bin/sh", "-c" ]
+    command: [ "sh", "-c", "ollama pull $${OLLAMA_MODEL:-llama3}" ]
     restart: "no"
     networks:
       - siati-network
@@ -101,14 +107,14 @@ services:
   redis:
     image: redis:7-alpine
     container_name: siati-redis
-    command: ["redis-server", "--appendonly", "yes"]
+    command: [ "redis-server", "--appendonly", "yes" ]
     volumes:
       - redis-data:/data
     restart: unless-stopped
     networks:
       - siati-network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 3

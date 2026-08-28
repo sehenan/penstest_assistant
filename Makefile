@@ -1,6 +1,8 @@
 .PHONY: dev test lint build deploy logs backup
 
 dev:
+	pip install -r requirements/base.txt
+	pip install -r requirements/dev.txt
 	python main.py -web
 
 test:

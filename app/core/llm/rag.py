@@ -17,7 +17,7 @@ try:
     from sentence_transformers import SentenceTransformer
     HAS_RAG_DEPS = True
 except (ImportError, OSError, Exception) as e:
-    logger.warning("Dépendances RAG (sentence-transformers / torch) non disponibles: %s", str(e))
+    logger.exception("Dépendances RAG (sentence-transformers / torch) non disponibles: %s", str(e))
     HAS_RAG_DEPS = False
 
 FAISS_DB_DIR = Path("data") / "faiss_index"

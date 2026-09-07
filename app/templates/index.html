@@ -1267,15 +1267,225 @@
         text-align: right;
       }
     }
+
+    /* ── Logo Modal ───────────────────────────────────────────────────────── */
+    .logo-area {
+      cursor: pointer;
+      position: relative;
+      transition: opacity 0.2s
+    }
+
+    .logo-area:hover {
+      opacity: 0.85
+    }
+
+    .logo-area::after {
+      content: '✎';
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 22px;
+      height: 22px;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      opacity: 0;
+      transition: opacity 0.2s;
+      pointer-events: none
+    }
+
+    .logo-area:hover::after {
+      opacity: 1
+    }
+
+    .logo-modal-wrap {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: none;
+      align-items: center;
+      justify-content: center
+    }
+
+    .logo-modal-wrap.open {
+      display: flex
+    }
+
+    .logo-modal-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(8px);
+      animation: fadeIn 0.2s ease
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0 }
+      to { opacity: 1 }
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px) scale(0.97) }
+      to { opacity: 1; transform: translateY(0) scale(1) }
+    }
+
+    .logo-modal {
+      position: relative;
+      z-index: 1;
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: 16px;
+      padding: 32px;
+      width: 420px;
+      max-width: 90vw;
+      animation: slideUp 0.3s ease;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4)
+    }
+
+    .logo-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px
+    }
+
+    .logo-modal-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--txt)
+    }
+
+    .logo-modal-close {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--txt2);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      transition: all 0.15s
+    }
+
+    .logo-modal-close:hover {
+      background: var(--hover);
+      color: var(--txt);
+      border-color: var(--border2)
+    }
+
+    .logo-preview-zone {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: var(--bg);
+      border: 2px dashed var(--border2);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      overflow: hidden;
+      position: relative;
+      transition: border-color 0.2s
+    }
+
+    .logo-preview-zone:hover {
+      border-color: var(--accent)
+    }
+
+    .logo-preview-zone img {
+      max-width: 80%;
+      max-height: 80%;
+      object-fit: contain;
+      border-radius: 8px
+    }
+
+    .logo-modal-actions {
+      display: flex;
+      gap: 10px
+    }
+
+    .logo-modal-actions .btn {
+      flex: 1;
+      padding: 10px 16px;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px
+    }
+
+    .btn-upload {
+      background: var(--accent) !important;
+      color: #fff !important;
+      border: none !important
+    }
+
+    .btn-upload:hover {
+      background: #ea580c !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3)
+    }
+
+    .btn-reset-logo {
+      background: transparent !important;
+      color: var(--txt2) !important;
+      border: 1px solid var(--border2) !important
+    }
+
+    .btn-reset-logo:hover {
+      background: var(--red-dim) !important;
+      color: var(--red) !important;
+      border-color: var(--red) !important
+    }
+
+    .logo-upload-hint {
+      font-size: 10px;
+      color: var(--txt3);
+      text-align: center;
+      margin-top: 12px;
+      font-family: var(--mono)
+    }
+
+    .logo-status-msg {
+      font-size: 11px;
+      text-align: center;
+      margin-top: 10px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      display: none
+    }
+
+    .logo-status-msg.success {
+      display: block;
+      background: var(--green-dim);
+      color: var(--green)
+    }
+
+    .logo-status-msg.error {
+      display: block;
+      background: var(--red-dim);
+      color: var(--red)
+    }
   </style>
 </head>
 
 <body>
 
   <div class="sidebar">
-    <div class="logo-area">
+    <div class="logo-area" onclick="openLogoModal()" title="Cliquer pour visualiser ou changer le logo">
       <div class="logo-mark">
-        <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEwAAABVCAYAAADjTgJ4AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAACxMAAAsTAQCanBgAAAJZaVRYdFhNTDpjb20uYWRvYmUueG1wAAAAAAA8P3hwYWNrZXQgYmVnaW49J++7vycgaWQ9J1c1TTBNcENlaGlIenJlU3pOVGN6a2M5ZCc/Pg0KPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyI+PHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj48cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0idXVpZDpmYWY1YmRkNS1iYTNkLTExZGEtYWQzMS1kMzNkNzUxODJmMWIiIHhtbG5zOmV4aWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20vZXhpZi8xLjAvIj48ZXhpZjpEYXRlVGltZU9yaWdpbmFsPjIwMjUtMDUtMzFUMjI6MTI6MjI8L2V4aWY6RGF0ZVRpbWVPcmlnaW5hbD48L3JkZjpEZXNjcmlwdGlvbj48cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0idXVpZDpmYWY1YmRkNS1iYTNkLTExZGEtYWQzMS1kMzNkNzUxODJmMWIiIHhtbG5zOnhtcD0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wLyI+PHhtcDpDcmVhdGVEYXRlPjIwMjUtMDUtMzFUMjI6MTI6MjI8L3htcDpDcmVhdGVEYXRlPjwvcmRmOkRlc2NyaXB0aW9uPjwvcmRmOlJERj48L3g6eG1wbWV0YT4NCjw/eHBhY2tldCBlbmQ9J3cnPz6sd0gtAAAAIXRFWHRDcmVhdGlvbiBUaW1lADIwMjU6MDU6MzEgMjI6MTI6MjLqor1+AAAEaklEQVR4Xu2aQXbiRhCG/5K9NznBKCeQmAuEnCA+Ar6Bt/MeBDvoPS8zcwI7Jwg5gfEJQDeAG8A6uP8sGsnQaglIJFDe1LcS1Sx4P11/VVcLUBRFURRFURRFURRFURRFURRFURTlRMQNtAkmUQwGt9uPPWf5MIIFiMVHwExxjYV8SXdip9FawZhEfSB4duO1QK4hMoExE/k1nbjLVbRXsHG8gsiNG68bgksBH2SQvrhrPlopGMdRDxK8uvEmIZAKTF8G6dxd2yVwA61gg8of3QQCRKBMrRWU00rB5DFdAebOjTeOyA0QPFeJ1sqUzOBTFOIdPTAIAYCCjhAxgKn7XYvxx4kOJIgJxAL2jvNGc+fztVYL1hRMoj4hDwL55K7lkGsIe66nfZeCZZjk872Av7vxHOJNhrO9/u+7Fgx5cyzT8jTdT81WCcZxdHo3X8WRXX2VaASXwWAeZp/PKlh21LHmiw6FYaWP1AnxBjEvPiPHwfT82GVnEewokz0TBJdC9mWYFioqx90pBD8V4sRfwXB2i6b7MI6iDsfdKRA8t0EsABDIJ0jw6u+1zIMbAQAR/JI/7y/VR5UvtAJyjWvGrseZpDsXINqNAQBofpZhOm1kh3EUdQiZtFYsbLv696Cwo4QomV4EPTS1w8q8oADxtn0q+Alo5hCs3HAZlKtYyI4T7lHQ8e6YjL/ND/YoZik7+BP4Fgxm97ULxt+iWwTBn248h3gDzddT51D/BT5FId9l6vXRbarthZIudz/boG1ia09JBsVtnkM8ynDWO6dYACBf0oVQvO1ElmrHUqtgTKK4bPsT+CbDWbmYDUOBm67/inoFw5X337Ld8uzejZ8LJlEMMLsb2IfmpNlbrR5mxt3Jbs+ys1IYlXAUdXCN2E2J7BSwG/MWhePpVRagK/PjbmtxVtMvrY5uJXqKQmxkfvG2wzONKD0iWf99qDclhfkhNY+By12xAACboH9xsQBATMEmhCWpux1O1iqYsJBKEMrBacFlMHfucJBPUejNEABZ61GrYIAUDdT7A0pGyeeAXPs8FQC4Cb66McAevrPnmgXzY6vUB/bfOu8lB8EliEdsGHrFSqK+v2ABIibvG+s2/QcIRm4cwB8ymBWmA9b8EUKwctMDmdCeNAcACMLscsSLmI/XBDaYF3x0h6pBQaMDRLuTgpkbt5iuT5RLY6e8VYOC/fStNSVlkM4JLt04AGwvSfdS89LYjAhey8QikLrpW6tgFr9xQuQGlKlJPhdK+TnhKOowifomiRcl9mEh1wJTsJFaUzLDJPHCOxnYYnehTIRmcuxFxank/gg7+gEYChH7q7YPfyVtRLCy48VRfMzIToRxWWqdjl8sNCUYbAFo7v2upiDXIPtV46fGBMP/TTTiDdemf8geGhUM2/SkyEuVp12S1r5Q16a7yfyVTZoXdzx9iLMJlsEkiomrnpCdwuzr6Ap2AKdwUDAXYgUxCwDzNjbQiqIoiqIoiqIoiqIoiqIoiqIoiqIoGf8AwEwAHpCISXAAAAAASUVORK5CYII=" alt="SIATI" class="logo-img-sq">
+        <img id="sidebar-logo-img" src="data:image/png;base64,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" alt="SIATI" class="logo-img-sq">
         <span class="logo-name">SIATI</span>
       </div>
       <div class="logo-tag">PENTEST PLATFORM</div>
@@ -1640,6 +1850,37 @@
       </div>
     </div>
   </div>
+
+  <!-- ═══ LOGO MODAL ═══ -->
+  <div class="logo-modal-wrap" id="logo-modal">
+    <div class="logo-modal-overlay" onclick="closeLogoModal()"></div>
+    <div class="logo-modal">
+      <div class="logo-modal-header">
+        <span class="logo-modal-title">Logo de l'entreprise</span>
+        <button class="logo-modal-close" onclick="closeLogoModal()">&times;</button>
+      </div>
+      <div class="logo-preview-zone" id="logo-preview-zone">
+        <img id="logo-preview-img" src="" alt="Aperçu du logo">
+      </div>
+      <div class="logo-modal-actions">
+        <button class="btn btn-upload" onclick="document.getElementById('logo-file-input').click()">
+          <svg viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.5" style="width:13px;height:13px">
+            <path d="M7.5 10V2M4 5l3.5-3.5L11 5"/><path d="M2 10v2a1 1 0 001 1h9a1 1 0 001-1v-2"/>
+          </svg>
+          Changer le logo
+        </button>
+        <button class="btn btn-reset-logo" onclick="resetLogo()">
+          <svg viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.5" style="width:13px;height:13px">
+            <path d="M2 2v4h4"/><path d="M2 6a6 6 0 1011.5 2"/>
+          </svg>
+          Réinitialiser
+        </button>
+      </div>
+      <div class="logo-upload-hint">PNG, JPG, SVG, WebP ou GIF · max 2 Mo</div>
+      <div class="logo-status-msg" id="logo-status-msg"></div>
+    </div>
+  </div>
+  <input type="file" id="logo-file-input" accept=".png,.jpg,.jpeg,.svg,.webp,.gif" style="display:none" onchange="uploadLogo(this)">
 
   <script>
     // ─── STATE ──────────────────────────────────────────────────────────────
@@ -2582,7 +2823,103 @@
       }
     }
 
+    // ─── LOGO MANAGEMENT ─────────────────────────────────────────────────
+    const DEFAULT_LOGO_SRC = document.getElementById('sidebar-logo-img').src;
+    let _hasCustomLogo = false;
+
+    function openLogoModal() {
+      const modal = document.getElementById('logo-modal');
+      const preview = document.getElementById('logo-preview-img');
+      const sidebarImg = document.getElementById('sidebar-logo-img');
+      preview.src = sidebarImg.src;
+      // Clear previous status
+      const statusEl = document.getElementById('logo-status-msg');
+      statusEl.className = 'logo-status-msg';
+      statusEl.textContent = '';
+      modal.classList.add('open');
+    }
+
+    function closeLogoModal() {
+      document.getElementById('logo-modal').classList.remove('open');
+    }
+
+    async function uploadLogo(input) {
+      const file = input.files[0];
+      if (!file) return;
+      const statusEl = document.getElementById('logo-status-msg');
+
+      // Validate client-side
+      const allowed = ['.png','.jpg','.jpeg','.svg','.webp','.gif'];
+      const ext = '.' + file.name.split('.').pop().toLowerCase();
+      if (!allowed.includes(ext)) {
+        statusEl.className = 'logo-status-msg error';
+        statusEl.textContent = 'Format non supporté. Utilisez PNG, JPG, SVG, WebP ou GIF.';
+        input.value = '';
+        return;
+      }
+      if (file.size > 2 * 1024 * 1024) {
+        statusEl.className = 'logo-status-msg error';
+        statusEl.textContent = 'Fichier trop volumineux (max 2 Mo).';
+        input.value = '';
+        return;
+      }
+
+      try {
+        const fd = new FormData();
+        fd.append('file', file);
+        const res = await api('/api/branding/logo', 'POST', fd);
+        // Update sidebar logo immediately
+        const newSrc = '/api/branding/logo?t=' + Date.now();
+        document.getElementById('sidebar-logo-img').src = newSrc;
+        document.getElementById('logo-preview-img').src = newSrc;
+        _hasCustomLogo = true;
+        statusEl.className = 'logo-status-msg success';
+        statusEl.textContent = '✓ Logo mis à jour avec succès';
+      } catch (e) {
+        statusEl.className = 'logo-status-msg error';
+        statusEl.textContent = 'Erreur : ' + (e.message || 'Upload échoué');
+      }
+      input.value = '';
+    }
+
+    async function resetLogo() {
+      const statusEl = document.getElementById('logo-status-msg');
+      if (!_hasCustomLogo) {
+        statusEl.className = 'logo-status-msg';
+        statusEl.textContent = '';
+        return;
+      }
+      try {
+        await api('/api/branding/logo', 'DELETE');
+        document.getElementById('sidebar-logo-img').src = DEFAULT_LOGO_SRC;
+        document.getElementById('logo-preview-img').src = DEFAULT_LOGO_SRC;
+        _hasCustomLogo = false;
+        statusEl.className = 'logo-status-msg success';
+        statusEl.textContent = '✓ Logo réinitialisé';
+      } catch (e) {
+        statusEl.className = 'logo-status-msg error';
+        statusEl.textContent = 'Erreur : ' + (e.message || 'Suppression échouée');
+      }
+    }
+
+    async function loadCustomLogo() {
+      try {
+        const resp = await fetch('/api/branding/logo?t=' + Date.now(), { method: 'HEAD' });
+        if (resp.ok) {
+          const src = '/api/branding/logo?t=' + Date.now();
+          document.getElementById('sidebar-logo-img').src = src;
+          _hasCustomLogo = true;
+        }
+      } catch (_) { /* no custom logo, keep default */ }
+    }
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeLogoModal();
+    });
+
     // ─── INIT ───────────────────────────────────────────────────────────────
+    loadCustomLogo();
     loadDash();
   </script>
 </body>

@@ -30,7 +30,7 @@ services:
       SECRET_KEY: ${SECRET_KEY:-change-this-in-production-min-32-chars!!}
       VULNFIX_ADMIN_USER: ${VULNFIX_ADMIN_USER:-admin}
       VULNFIX_ADMIN_PASSWORD: ${VULNFIX_ADMIN_PASSWORD:-admin}
-      PENTEST_DB_URL: sqlite:////app/data/pentest.db
+      PENTEST_DB_URL: "sqlite:////app/data/pentest.db"
       OLLAMA_HOST: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3}
       OLLAMA_TIMEOUT: "1800"

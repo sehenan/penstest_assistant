@@ -45,7 +45,7 @@ def create_bundle(db_path: str = "threat_intel.db", output_dir: str = "bundles")
     with open(metadata_path, "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=4)
         
-    bundle_name = f"siati_intel_{version}.tar.gz"
+    bundle_name = f"vulnfix_intel_{version}.tar.gz"
     bundle_path = out_dir / bundle_name
     
     with tarfile.open(bundle_path, "w:gz") as tar:

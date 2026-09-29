@@ -63,7 +63,7 @@ encoded = base64.urlsafe_b64encode(full_mermaid.encode('utf-8')).decode('utf-8')
 url = f'https://mermaid.ink/img/{encoded}?bgColor=!white'
 
 req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-output_path = os.path.join(os.path.dirname(__file__), "..", "architecture_siati_memoire.png")
+output_path = os.path.join(os.path.dirname(__file__), "..", "architecture_vulnfix_memoire.png")
 try:
     with urllib.request.urlopen(req) as response:
         with open(output_path, 'wb') as f:

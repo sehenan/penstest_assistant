@@ -4,7 +4,7 @@ from pathlib import Path
 import os
 from sqlalchemy import event
 
-# Define models that SIATI will use to read from threat_intel.db
+# Define models that VulnFix will use to read from threat_intel.db
 BaseIntel = declarative_base()
 
 # To keep it DRY, we redefine the models here or we could share them if we packaged the builder.

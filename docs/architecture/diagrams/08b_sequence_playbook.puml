@@ -8,7 +8,7 @@ participant "ollama_client" as OC
 participant "generator.py (V1)" as GEN
 participant "rag.py\n(FAISS + MiniLM)" as RAG
 participant "ReportValidator" as VAL
-database "siati.db" as DB
+database "vulnfix.db" as DB
 participant "Ollama\n(mistral, T = 0,1)" as LLM
 
 U -> API : POST /api/generate {vuln_id, mode}

@@ -1,6 +1,6 @@
 """
 Pydantic Models for Request/Response Validation
-Advanced validation models for SIATI API
+Advanced validation models for VulnFix API
 """
 from typing import Optional, List, Dict, Any
 from datetime import datetime

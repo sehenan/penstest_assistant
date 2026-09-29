@@ -1,11 +1,10 @@
-# syntax=docker/dockerfile:1
 # ==============================================================================
-# SIATI — Système Intelligent d'Assistance aux Tests d'Intrusion
+# VulnFix — Système Intelligent d'Assistance aux Tests d'Intrusion
 # Image Docker multi-stage, air-gap au runtime, utilisateur non-root.
 # Python 3.12 (aligné sur l'environnement de développement validé).
 #
 # Usage :
-#   docker build -t siati:latest .
+#   docker build -t vulnfix:latest .
 #   docker compose up -d --build
 # ==============================================================================
 
@@ -80,15 +79,15 @@ COPY . .
 RUN mkdir -p /app/data /app/logs
 
 # Utilisateur non privilégié + appropriation des chemins inscriptibles.
-RUN useradd --create-home --uid 1000 siati \
-    && chown -R siati:siati /app /opt/hf_cache
-USER siati
+RUN useradd --create-home --uid 1000 vulnfix \
+    && chown -R vulnfix:vulnfix /app /opt/hf_cache
+USER vulnfix
 
 # --- Configuration runtime par défaut (surchargeables via .env ou compose) ---
-ENV SIATI_ENV=production \
-    SIATI_HOST=0.0.0.0 \
-    SIATI_PORT=8505 \
-    SIATI_WORKERS=2 \
+ENV VULNFIX_ENV=production \
+    VULNFIX_HOST=0.0.0.0 \
+    VULNFIX_PORT=8505 \
+    VULNFIX_WORKERS=2 \
     PENTEST_DB_URL=sqlite:////app/data/pentest.db \
     OLLAMA_HOST=http://127.0.0.1:11434 \
     OLLAMA_MODEL=llama3 \
@@ -101,14 +100,14 @@ EXPOSE 8505
 
 # Sonde de santé sur l'endpoint le plus léger.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -fsS http://localhost:${SIATI_PORT}/health || exit 1
+    CMD curl -fsS http://localhost:${VULNFIX_PORT}/health || exit 1
 
 # Production : Gunicorn + workers Uvicorn pour la concurrence et la robustesse.
 # Development : remplacer cette CMD par "python main.py -web" pour le rechargement auto.
 CMD ["sh", "-c", "gunicorn app.ui.server:app \
     --worker-class uvicorn.workers.UvicornWorker \
-    --workers ${SIATI_WORKERS} \
-    --bind ${SIATI_HOST}:${SIATI_PORT} \
+    --workers ${VULNFIX_WORKERS} \
+    --bind ${VULNFIX_HOST}:${VULNFIX_PORT} \
     --timeout 300 \
     --keep-alive 5 \
     --access-logfile - \

@@ -9,7 +9,7 @@ participant "ingest_scan_file\n+ parsers/detect" as ING
 participant "normalizer.py" as NORM
 participant "Enrichissement\n(cpe_to_cve, nvd, cpe,\nexploit_db, translate)" as ENR
 participant "DataManager +\npredict_and_store" as ML
-database "siati.db" as DB
+database "vulnfix.db" as DB
 database "Intel locale\n(threat_intel.db, nvd_cache,\ncpe.db, exploits.db)" as INTEL
 participant "Ollama" as LLM
 

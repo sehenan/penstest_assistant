@@ -3,7 +3,7 @@ from typing import Optional
 
 
 class Settings(BaseSettings):
-    """Configuration centralisée de l'application SIATI.
+    """Configuration centralisée de l'application VulnFix.
 
     Toutes les valeurs peuvent être surchargées via un fichier .env
     (copier .env.example -> .env) ou des variables d'environnement.
@@ -13,30 +13,30 @@ class Settings(BaseSettings):
     # ── Environnement ──────────────────────────────────────────────────────────
     # "development" : logs verbeux, rechargement automatique uvicorn.
     # "production"  : workers Gunicorn, auth obligatoire, CORS strict.
-    SIATI_ENV: str = "development"
+    VULNFIX_ENV: str = "development"
 
     # ── Serveur Web ────────────────────────────────────────────────────────────
-    SIATI_HOST: str = "127.0.0.1"
-    SIATI_PORT: int = 8505
+    VULNFIX_HOST: str = "127.0.0.1"
+    VULNFIX_PORT: int = 8505
     # Nombre de workers Gunicorn (production uniquement, ignoré en dev)
-    SIATI_WORKERS: int = 2
+    VULNFIX_WORKERS: int = 2
 
     # ── Base de données ────────────────────────────────────────────────────────
     # Chemin relatif à la racine du projet ou absolu.
-    SIATI_DB_PATH: str = "data/pentest.db"
+    VULNFIX_DB_PATH: str = "data/pentest.db"
 
     # ── Sécurité ───────────────────────────────────────────────────────────────
-    SIATI_REQUIRE_AUTH: bool = False
+    VULNFIX_REQUIRE_AUTH: bool = False
     # Origines autorisées pour le CORS (séparées par des virgules).
-    SIATI_CORS_ORIGINS: str = "http://localhost:8505"
+    VULNFIX_CORS_ORIGINS: str = "http://localhost:8505"
     # OBLIGATOIRE en production : clé secrète JWT (min. 32 caractères).
     SECRET_KEY: Optional[str] = None
     # Durée de validité d'un token JWT (en minutes).
     JWT_EXPIRE_MINUTES: int = 1440  # 24 h
 
     # ── Authentification admin ─────────────────────────────────────────────────
-    SIATI_ADMIN_USER: str = "admin"
-    SIATI_ADMIN_PASSWORD: str = "admin"
+    VULNFIX_ADMIN_USER: str = "admin"
+    VULNFIX_ADMIN_PASSWORD: str = "admin"
 
     # ── LLM (Ollama) ───────────────────────────────────────────────────────────
     OLLAMA_HOST: str = "http://localhost:11434"
@@ -62,7 +62,7 @@ class Settings(BaseSettings):
 
     # ── Journalisation ─────────────────────────────────────────────────────────
     LOG_LEVEL: str = "INFO"
-    LOG_FILE: str = "logs/siati.log"
+    LOG_FILE: str = "logs/vulnfix.log"
 
     model_config = SettingsConfigDict(
         env_file=".env",

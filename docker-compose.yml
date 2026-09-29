@@ -1,6 +1,6 @@
 # ==============================================================================
-# SIATI — Orchestration Docker Compose
-#   - siati        : application FastAPI (UI + API)
+# VulnFix — Orchestration Docker Compose
+#   - vulnfix        : application FastAPI (UI + API)
 #   - ollama       : serveur LLM local
 #   - ollama-init  : tâche unique qui télécharge le modèle (1er démarrage)
 #   - redis        : cache / rate-limiting (optionnel, fallback mémoire)
@@ -11,25 +11,25 @@
 
 services:
   # ---------------------------------------------------------------------------
-  # Application principale SIATI
+  # Application principale VulnFix
   # ---------------------------------------------------------------------------
-  siati:
+  vulnfix:
     build:
       context: .
       dockerfile: Dockerfile
-    image: siati:latest
-    container_name: siati-app
+    image: vulnfix:latest
+    container_name: vulnfix-app
     ports:
       - "8505:8505"
     environment:
-      SIATI_ENV: production
-      SIATI_HOST: 0.0.0.0
-      SIATI_PORT: "8505"
-      SIATI_WORKERS: "2"
-      SIATI_REQUIRE_AUTH: "0"
+      VULNFIX_ENV: production
+      VULNFIX_HOST: 0.0.0.0
+      VULNFIX_PORT: "8505"
+      VULNFIX_WORKERS: "2"
+      VULNFIX_REQUIRE_AUTH: "0"
       SECRET_KEY: ${SECRET_KEY:-change-this-in-production-min-32-chars!!}
-      SIATI_ADMIN_USER: ${SIATI_ADMIN_USER:-admin}
-      SIATI_ADMIN_PASSWORD: ${SIATI_ADMIN_PASSWORD:-changeme}
+      VULNFIX_ADMIN_USER: ${VULNFIX_ADMIN_USER:-admin}
+      VULNFIX_ADMIN_PASSWORD: ${VULNFIX_ADMIN_PASSWORD:-admin}
       PENTEST_DB_URL: sqlite:////app/data/pentest.db
       OLLAMA_HOST: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3}
@@ -38,8 +38,8 @@ services:
       REDIS_PORT: "6379"
       LOG_LEVEL: INFO
       # CORS : utiliser "*" en mode air-gap/lab.
-      # En production internet, lister les origines explicites : "https://siati.mondomaine.com"
-      SIATI_CORS_ORIGINS: "*"
+      # En production internet, lister les origines explicites : "https://vulnfix.mondomaine.com"
+      VULNFIX_CORS_ORIGINS: "*"
     volumes:
       # Données persistantes (BDD SQLite, FAISS, intel, modèle ML, base de connaissance)
       - ./data:/app/data
@@ -53,7 +53,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     networks:
-      - siati-network
+      - vulnfix-network
     healthcheck:
       # /health est la sonde légère (pas de lecture DB lourde)
       test: [ "CMD", "curl", "-fsS", "http://localhost:8505/health" ]
@@ -67,14 +67,14 @@ services:
   # ---------------------------------------------------------------------------
   ollama:
     image: ollama/ollama:latest
-    container_name: siati-ollama
+    container_name: vulnfix-ollama
     ports:
       - "11434:11434"
     volumes:
       - ollama-data:/root/.ollama
     restart: unless-stopped
     networks:
-      - siati-network
+      - vulnfix-network
     healthcheck:
       # L'image ollama ne contient pas curl ; on utilise la CLI intégrée.
       test: [ "CMD", "ollama", "list" ]
@@ -88,7 +88,7 @@ services:
   # ---------------------------------------------------------------------------
   ollama-init:
     image: ollama/ollama:latest
-    container_name: siati-ollama-init
+    container_name: vulnfix-ollama-init
     depends_on:
       ollama:
         condition: service_healthy
@@ -99,20 +99,20 @@ services:
     command: [ "sh", "-c", "ollama pull $${OLLAMA_MODEL:-llama3}" ]
     restart: "no"
     networks:
-      - siati-network
+      - vulnfix-network
 
   # ---------------------------------------------------------------------------
   # Cache Redis (rate-limiting + cache applicatif)
   # ---------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
-    container_name: siati-redis
+    container_name: vulnfix-redis
     command: [ "redis-server", "--appendonly", "yes" ]
     volumes:
       - redis-data:/data
     restart: unless-stopped
     networks:
-      - siati-network
+      - vulnfix-network
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
@@ -126,5 +126,5 @@ volumes:
     driver: local
 
 networks:
-  siati-network:
+  vulnfix-network:
     driver: bridge

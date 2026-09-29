@@ -101,7 +101,7 @@ def get_report_pdf(report_id: int):
         <body>
           <div class="header">
              <img src="app/ui/assets/logo.png" style="height: 50px; margin-bottom: 10px;" /><br>
-             <span class="brand">SIATI</span><br>
+             <span class="brand">VulnFix</span><br>
              Système Intelligent d'Assistance aux Tests d'Intrusion<br>
              Généré le {date_str}
           </div>
@@ -109,7 +109,7 @@ def get_report_pdf(report_id: int):
           {html_content}
           
           <div id="footerContent" style="text-align: right; font-size: 8pt; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 5px;">
-              SIATI — Pentest Intelligence Platform | Page <pdf:pagenumber> sur <pdf:pagecount>
+              VulnFix — Pentest Intelligence Platform | Page <pdf:pagenumber> sur <pdf:pagecount>
           </div>
         </body>
         </html>

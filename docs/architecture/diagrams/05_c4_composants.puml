@@ -5,12 +5,12 @@ skinparam defaultFontName Helvetica
 skinparam shadowing false
 skinparam linetype ortho
 LAYOUT_TOP_DOWN()
-title Diagramme C4 — Niveau 3 : Composants du backend SIATI
+title Diagramme C4 — Niveau 3 : Composants du backend VulnFix
 UpdateElementStyle(component, $bgColor="white", $fontColor="black", $borderColor="black")
 UpdateElementStyle(container, $bgColor="white", $fontColor="black", $borderColor="black")
 UpdateElementStyle(external_system, $bgColor="white", $fontColor="black", $borderColor="black")
 
-Container_Boundary(backend, "Backend SIATI (FastAPI + CLI)") {
+Container_Boundary(backend, "Backend VulnFix (FastAPI + CLI)") {
   Component(server, "server.py", "FastAPI", "Application, lifespan (préchargement embeddings), CORS, handler d'erreurs")
   Component(router, "main_api.py", "APIRouter", "15 routes REST : stats, hosts, vulns, reports, PDF, generate, chat, ingest, score, performance, audit")
   Component(cli, "cmd.py", "Typer", "Commandes CLI du pipeline")
@@ -26,7 +26,7 @@ Container_Boundary(backend, "Backend SIATI (FastAPI + CLI)") {
   Component(orm, "db/models.py + database.py", "SQLAlchemy", "ORM et sessions")
 }
 
-ContainerDb(db, "siati.db", "SQLite", "")
+ContainerDb(db, "vulnfix.db", "SQLite", "")
 ContainerDb(intel, "Bases d'enrichissement", "SQLite / JSON", "threat_intel.db, cpe.db, exploits.db, nvd_cache/")
 ContainerDb(faiss, "Index FAISS", "fichiers", "pentest.index + chunks.json")
 System_Ext(ollama, "Ollama", "mistral")

@@ -1,5 +1,5 @@
 """
-Async Database Operations for SIATI
+Async Database Operations for VulnFix
 Asynchronous database operations for improved performance
 """
 import asyncio
@@ -28,7 +28,7 @@ T = TypeVar('T')
 
 
 class AsyncDatabaseManager:
-    """Asynchronous database manager for SIATI"""
+    """Asynchronous database manager for VulnFix"""
 
     def __init__(self, database_url: str = "sqlite+aiosqlite:///./data/pentest.db"):
         """

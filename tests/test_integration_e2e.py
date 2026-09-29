@@ -1,5 +1,5 @@
 """
-End-to-End Integration Tests for SIATI
+End-to-End Integration Tests for VulnFix
 Complete integration tests covering the full application flow
 """
 import pytest

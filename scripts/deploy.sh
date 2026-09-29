@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# SIATI Deployment and Monitoring Script
-# This script helps deploy and monitor the SIATI application
+# VulnFix Deployment and Monitoring Script
+# This script helps deploy and monitor the VulnFix application
 
 set -e
 
@@ -85,7 +85,7 @@ build_images() {
 
 # Start services
 start_services() {
-    print_info "Starting SIATI services..."
+    print_info "Starting VulnFix services..."
 
     docker-compose up -d
 
@@ -101,7 +101,7 @@ start_services() {
 
 # Stop services
 stop_services() {
-    print_info "Stopping SIATI services..."
+    print_info "Stopping VulnFix services..."
 
     docker-compose down
 
@@ -110,7 +110,7 @@ stop_services() {
 
 # Restart services
 restart_services() {
-    print_info "Restarting SIATI services..."
+    print_info "Restarting VulnFix services..."
 
     docker-compose restart
 
@@ -139,11 +139,11 @@ check_health() {
     echo ""
     print_info "Detailed health checks:"
 
-    # Check SIATI API
+    # Check VulnFix API
     if curl -f -s http://localhost:8505/api/stats > /dev/null; then
-        print_success "SIATI API is healthy"
+        print_success "VulnFix API is healthy"
     else
-        print_error "SIATI API is not responding"
+        print_error "VulnFix API is not responding"
     fi
 
     # Check Ollama
@@ -165,7 +165,7 @@ check_health() {
 run_tests() {
     print_info "Running tests..."
 
-    docker-compose exec siati python -m pytest tests/ -v
+    docker-compose exec vulnfix python -m pytest tests/ -v
 
     print_success "Tests completed"
 }
@@ -275,7 +275,7 @@ show_usage() {
     echo "Examples:"
     echo "  $0 setup"
     echo "  $0 start"
-    echo "  $0 logs siati"
+    echo "  $0 logs vulnfix"
     echo "  $0 backup"
     echo "  $0 restore backups/20231201_120000"
 }

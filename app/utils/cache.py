@@ -1,5 +1,5 @@
 """
-Advanced Caching System for SIATI
+Advanced Caching System for VulnFix
 Multi-layer caching with Redis, memory, and disk caching
 """
 import json
@@ -133,7 +133,7 @@ class RedisCache(CacheBackend):
             raise ImportError("Redis package not installed")
 
         self.client = redis.Redis(host=host, port=port, db=db, decode_responses=True)
-        self.prefix = "siati_cache:"
+        self.prefix = "vulnfix_cache:"
 
     def _make_key(self, key: str) -> str:
         """Add prefix to key"""
@@ -172,7 +172,7 @@ class RedisCache(CacheBackend):
             return False
 
     def clear(self) -> bool:
-        """Clear all SIATI cache entries from Redis"""
+        """Clear all VulnFix cache entries from Redis"""
         try:
             keys = self.client.keys(f"{self.prefix}*")
             if keys:
@@ -520,7 +520,7 @@ def _generate_cache_key(prefix: str, func_name: str, args: tuple, kwargs: dict) 
 # ============================================================================
 
 class CacheManager:
-    """Central cache manager for SIATI"""
+    """Central cache manager for VulnFix"""
 
     _instance = None
 

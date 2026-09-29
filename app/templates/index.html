@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SIATI — Système Intelligent d'Assistance aux Tests d'Intrusion</title>
+  <title>VulnFix</title>
   <meta name="description"
     content="Plateforme offline de pentest intelligence : ingestion, enrichissement, priorisation ML et exploitation assistée par LLM.">
   <style>
@@ -1247,7 +1247,7 @@
 
       /* En-tête de rapport professionnel */
       .page.active::before {
-        content: "SIATI - RAPPORT D'ACTIVITÉ SÉCURITÉ";
+        content: "VulnFix - RAPPORT D'ACTIVITÉ SÉCURITÉ";
         display: block;
         text-align: left;
         font-weight: 800;
@@ -1257,7 +1257,7 @@
       }
 
       .page.active::after {
-        content: "Généré par la plateforme SIATI Pentest Assistant";
+        content: "Généré par la plateforme VulnFix Pentest Assistant";
         display: block;
         font-size: 9pt;
         color: #64748b;
@@ -1324,13 +1324,25 @@
     }
 
     @keyframes fadeIn {
-      from { opacity: 0 }
-      to { opacity: 1 }
+      from {
+        opacity: 0
+      }
+
+      to {
+        opacity: 1
+      }
     }
 
     @keyframes slideUp {
-      from { opacity: 0; transform: translateY(20px) scale(0.97) }
-      to { opacity: 1; transform: translateY(0) scale(1) }
+      from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.97)
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1)
+      }
     }
 
     .logo-modal {
@@ -1485,10 +1497,11 @@
   <div class="sidebar">
     <div class="logo-area" onclick="openLogoModal()" title="Cliquer pour visualiser ou changer le logo">
       <div class="logo-mark">
-        <img id="sidebar-logo-img" src="data:image/png;base64,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" alt="SIATI" class="logo-img-sq">
-        <span class="logo-name">SIATI</span>
+        <img id="sidebar-logo-img"
+          src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEwAAABVCAYAAADjTgJ4AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAACxMAAAsTAQCanBgAAAJZaVRYdFhNTDpjb20uYWRvYmUueG1wAAAAAAA8P3hwYWNrZXQgYmVnaW49J++7vycgaWQ9J1c1TTBNcENlaGlIenJlU3pOVGN6a2M5ZCc/Pg0KPHg6eG1wbWV0YSB4bWxuczp4PSJhZG9iZTpuczptZXRhLyI+PHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj48cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0idXVpZDpmYWY1YmRkNS1iYTNkLTExZGEtYWQzMS1kMzNkNzUxODJmMWIiIHhtbG5zOmV4aWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20vZXhpZi8xLjAvIj48ZXhpZjpEYXRlVGltZU9yaWdpbmFsPjIwMjUtMDUtMzFUMjI6MTI6MjI8L2V4aWY6RGF0ZVRpbWVPcmlnaW5hbD48L3JkZjpEZXNjcmlwdGlvbj48cmRmOkRlc2NyaXB0aW9uIHJkZjphYm91dD0idXVpZDpmYWY1YmRkNS1iYTNkLTExZGEtYWQzMS1kMzNkNzUxODJmMWIiIHhtbG5zOnhtcD0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wLyI+PHhtcDpDcmVhdGVEYXRlPjIwMjUtMDUtMzFUMjI6MTI6MjI8L3htcDpDcmVhdGVEYXRlPjwvcmRmOkRlc2NyaXB0aW9uPjwvcmRmOlJERj48L3g6eG1wbWV0YT4NCjw/eHBhY2tldCBlbmQ9J3cnPz6sd0gtAAAAIXRFWHRDcmVhdGlvbiBUaW1lADIwMjU6MDU6MzEgMjI6MTI6MjLqor1+AAAEaklEQVR4Xu2aQXbiRhCG/5K9NznBKCeQmAuEnCA+Ar6Bt/MeBDvoPS8zcwI7Jwg5gfEJQDeAG8A6uP8sGsnQaglIJFDe1LcS1Sx4P11/VVcLUBRFURRFURRFURRFURRFURRFURTlRMQNtAkmUQwGt9uPPWf5MIIFiMVHwExxjYV8SXdip9FawZhEfSB4duO1QK4hMoExE/k1nbjLVbRXsHG8gsiNG68bgksBH2SQvrhrPlopGMdRDxK8uvEmIZAKTF8G6dxd2yVwA61gg8of3QQCRKBMrRWU00rB5DFdAebOjTeOyA0QPFeJ1sqUzOBTFOIdPTAIAYCCjhAxgKn7XYvxx4kOJIgJxAL2jvNGc+fztVYL1hRMoj4hDwL55K7lkGsIe66nfZeCZZjk872Av7vxHOJNhrO9/u+7Fgx5cyzT8jTdT81WCcZxdHo3X8WRXX2VaASXwWAeZp/PKlh21LHmiw6FYaWP1AnxBjEvPiPHwfT82GVnEewokz0TBJdC9mWYFioqx90pBD8V4sRfwXB2i6b7MI6iDsfdKRA8t0EsABDIJ0jw6u+1zIMbAQAR/JI/7y/VR5UvtAJyjWvGrseZpDsXINqNAQBofpZhOm1kh3EUdQiZtFYsbLv696Cwo4QomV4EPTS1w8q8oADxtn0q+Alo5hCs3HAZlKtYyI4T7lHQ8e6YjL/ND/YoZik7+BP4Fgxm97ULxt+iWwTBn248h3gDzddT51D/BT5FId9l6vXRbarthZIudz/boG1ia09JBsVtnkM8ynDWO6dYACBf0oVQvO1ElmrHUqtgTKK4bPsT+CbDWbmYDUOBm67/inoFw5X337Ld8uzejZ8LJlEMMLsb2IfmpNlbrR5mxt3Jbs+ys1IYlXAUdXCN2E2J7BSwG/MWhePpVRagK/PjbmtxVtMvrY5uJXqKQmxkfvG2wzONKD0iWf99qDclhfkhNY+By12xAACboH9xsQBATMEmhCWpux1O1iqYsJBKEMrBacFlMHfucJBPUejNEABZ61GrYIAUDdT7A0pGyeeAXPs8FQC4Cb66McAevrPnmgXzY6vUB/bfOu8lB8EliEdsGHrFSqK+v2ABIibvG+s2/QcIRm4cwB8ymBWmA9b8EUKwctMDmdCeNAcACMLscsSLmI/XBDaYF3x0h6pBQaMDRLuTgpkbt5iuT5RLY6e8VYOC/fStNSVlkM4JLt04AGwvSfdS89LYjAhey8QikLrpW6tgFr9xQuQGlKlJPhdK+TnhKOowifomiRcl9mEh1wJTsJFaUzLDJPHCOxnYYnehTIRmcuxFxank/gg7+gEYChH7q7YPfyVtRLCy48VRfMzIToRxWWqdjl8sNCUYbAFo7v2upiDXIPtV46fGBMP/TTTiDdemf8geGhUM2/SkyEuVp12S1r5Q16a7yfyVTZoXdzx9iLMJlsEkiomrnpCdwuzr6Ap2AKdwUDAXYgUxCwDzNjbQiqIoiqIoiqIoiqIoiqIoiqIoiqIoGf8AwEwAHpCISXAAAAAASUVORK5CYII="
+          alt="VulnFix" class="logo-img-sq">
+        <span class="logo-name">VulnFix</span>
       </div>
-      <div class="logo-tag">PENTEST PLATFORM</div>
     </div>
     <div class="nav">
       <div class="nav-group">
@@ -1865,13 +1878,15 @@
       <div class="logo-modal-actions">
         <button class="btn btn-upload" onclick="document.getElementById('logo-file-input').click()">
           <svg viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.5" style="width:13px;height:13px">
-            <path d="M7.5 10V2M4 5l3.5-3.5L11 5"/><path d="M2 10v2a1 1 0 001 1h9a1 1 0 001-1v-2"/>
+            <path d="M7.5 10V2M4 5l3.5-3.5L11 5" />
+            <path d="M2 10v2a1 1 0 001 1h9a1 1 0 001-1v-2" />
           </svg>
           Changer le logo
         </button>
         <button class="btn btn-reset-logo" onclick="resetLogo()">
           <svg viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.5" style="width:13px;height:13px">
-            <path d="M2 2v4h4"/><path d="M2 6a6 6 0 1011.5 2"/>
+            <path d="M2 2v4h4" />
+            <path d="M2 6a6 6 0 1011.5 2" />
           </svg>
           Réinitialiser
         </button>
@@ -1880,7 +1895,8 @@
       <div class="logo-status-msg" id="logo-status-msg"></div>
     </div>
   </div>
-  <input type="file" id="logo-file-input" accept=".png,.jpg,.jpeg,.svg,.webp,.gif" style="display:none" onchange="uploadLogo(this)">
+  <input type="file" id="logo-file-input" accept=".png,.jpg,.jpeg,.svg,.webp,.gif" style="display:none"
+    onchange="uploadLogo(this)">
 
   <script>
     // ─── STATE ──────────────────────────────────────────────────────────────
@@ -1888,7 +1904,7 @@
 
     // ─── API ────────────────────────────────────────────────────────────────
     async function api(url, method, body) {
-      const token = localStorage.getItem('siati_token');
+      const token = localStorage.getItem('vulnfix_token');
       const opts = { method: method || 'GET', headers: {} };
       if (token) opts.headers['Authorization'] = 'Bearer ' + token;
       if (body instanceof FormData) {
@@ -2354,7 +2370,7 @@
       fd.append('file', file);
       fd.append('auto_pilot', 'true');
 
-      const token = localStorage.getItem('siati_token');
+      const token = localStorage.getItem('vulnfix_token');
       fetch('/api/ingest', {
         method: 'POST',
         headers: token ? { 'Authorization': 'Bearer ' + token } : {},
@@ -2715,7 +2731,7 @@
         history: chatHistory
       };
 
-      const _chatToken = localStorage.getItem('siati_token');
+      const _chatToken = localStorage.getItem('vulnfix_token');
       fetch('/api/chat', {
         method: 'POST',
         body: JSON.stringify(payload),
@@ -2784,20 +2800,20 @@
 
     // ─── AUTH GUARD ───────────────────────────────────────────────────────────
     (function () {
-      const token = localStorage.getItem('siati_token') ||
-        (document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('siati_token=')) || '').split('=')[1];
+      const token = localStorage.getItem('vulnfix_token') ||
+        (document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('vulnfix_token=')) || '').split('=')[1];
       if (!token) { window.location.href = '/login'; }
     })();
 
     function logout() {
-      localStorage.removeItem('siati_token');
-      document.cookie = 'siati_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      localStorage.removeItem('vulnfix_token');
+      document.cookie = 'vulnfix_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
       window.location.href = '/login';
     }
 
     // ─── THEME ──────────────────────────────────────────────────────────────
     (function () {
-      const saved = localStorage.getItem('siati_theme') || 'dark';
+      const saved = localStorage.getItem('vulnfix_theme') || 'dark';
       if (saved === 'light') document.documentElement.setAttribute('data-theme', 'light');
       document.addEventListener('DOMContentLoaded', () => {
         const s = document.getElementById('icon-sun');
@@ -2814,7 +2830,7 @@
       const next = isLight ? 'dark' : 'light';
       if (next === 'light') root.setAttribute('data-theme', 'light');
       else root.removeAttribute('data-theme');
-      localStorage.setItem('siati_theme', next);
+      localStorage.setItem('vulnfix_theme', next);
       const s = document.getElementById('icon-sun');
       const m = document.getElementById('icon-moon');
       if (s && m) {
@@ -2849,7 +2865,7 @@
       const statusEl = document.getElementById('logo-status-msg');
 
       // Validate client-side
-      const allowed = ['.png','.jpg','.jpeg','.svg','.webp','.gif'];
+      const allowed = ['.png', '.jpg', '.jpeg', '.svg', '.webp', '.gif'];
       const ext = '.' + file.name.split('.').pop().toLowerCase();
       if (!allowed.includes(ext)) {
         statusEl.className = 'logo-status-msg error';

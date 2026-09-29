@@ -117,21 +117,21 @@ jobs:
 
     - name: Build Docker image
       run: |
-        docker build -t siati:latest .
+        docker build -t vulnfix:latest .
 
     - name: Test Docker image
       run: |
-        docker run --rm siati:latest python -c "import app; print('Import successful')"
+        docker run --rm vulnfix:latest python -c "import app; print('Import successful')"
 
     - name: Save Docker image
       run: |
-        docker save siati:latest | gzip > siati-image.tar.gz
+        docker save vulnfix:latest | gzip > vulnfix-image.tar.gz
 
     - name: Upload Docker image
       uses: actions/upload-artifact@v3
       with:
         name: docker-image
-        path: siati-image.tar.gz
+        path: vulnfix-image.tar.gz
 
   deploy:
     runs-on: ubuntu-latest
@@ -148,7 +148,7 @@ jobs:
 
     - name: Load Docker image
       run: |
-        docker load < siati-image.tar.gz
+        docker load < vulnfix-image.tar.gz
 
     - name: Deploy to production
       run: |

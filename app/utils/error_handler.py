@@ -12,11 +12,11 @@ import json
 import os
 from pathlib import Path
 
-# Répertoire de logs : surcharge via SIATI_LOGS_DIR, sinon <racine_projet>/logs.
+# Répertoire de logs : surcharge via VULNFIX_LOGS_DIR, sinon <racine_projet>/logs.
 # parents[2] = racine du dépôt (.../penstest_assistant en dev, /app en conteneur),
 # pas parents[3] qui pointait un cran trop haut (/ en conteneur -> non inscriptible).
 _DEFAULT_LOGS_DIR = Path(__file__).resolve().parents[2] / "logs"
-_LOGS_DIR = Path(os.environ.get("SIATI_LOGS_DIR", _DEFAULT_LOGS_DIR))
+_LOGS_DIR = Path(os.environ.get("VULNFIX_LOGS_DIR", _DEFAULT_LOGS_DIR))
 
 # Repli gracieux : si le dossier n'est pas inscriptible (FS read-only, droits),
 # on bascule sur la console uniquement plutôt que de faire échouer l'import.

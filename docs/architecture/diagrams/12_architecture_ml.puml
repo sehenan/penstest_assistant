@@ -1,5 +1,5 @@
 @startuml 12_architecture_ml
-title Architecture Machine Learning — SIATI (XGBoost + pile sémantique RAG)
+title Architecture Machine Learning — VulnFix (XGBoost + pile sémantique RAG)
 !include _theme.puml
 
 package "Hors ligne — Jeu de données et entraînement" {
@@ -18,7 +18,7 @@ package "En ligne — Inférence (score / auto-pilot)" {
   [predict.py\npredict_and_store()\nlabels : Faible / Moyenne /\nHaute / Critique] as PRED
 }
 
-database "siati.db" as DB
+database "vulnfix.db" as DB
 [ScoreML\nscore 0–1, label, confidence,\nreasoning (explication XAI)] as SCORE
 
 package "Pile sémantique (RAG)" {

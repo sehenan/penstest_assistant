@@ -54,7 +54,7 @@ diagrams = {
         ADMIN["Administrateur Système"]
     end
     subgraph Z6 ["Zone 6 - Presentation Layer"]
-        DASH["Dashboard SIATI"]
+        DASH["Dashboard VulnFix"]
         REP["Rapports & Playbooks"]
         STAT["Statistiques & Recherche"]
     end
@@ -84,7 +84,7 @@ diagrams = {
         KB[("Knowledge Base (FAISS)")]
     end
     subgraph Z2 ["Zone 2 - Ingestion"]
-        BUILDER["SIATI Intel Builder"]
+        BUILDER["VulnFix Intel Builder"]
         SYNC["Synchronisation"]
         PARS["Parsing XML/TXT"]
     end
@@ -110,7 +110,7 @@ diagrams = {
     SRC1["API NVD"]
     SRC2["CISA KEV"]
     SRC3["EPSS Scores"]
-    subgraph Builder["SIATI Intel Builder (Connecté)"]
+    subgraph Builder["VulnFix Intel Builder (Connecté)"]
         ETL1["etl.nvd.py"]
         ETL2["etl.kev.py"]
         ETL3["etl.epss.py"]
@@ -125,7 +125,7 @@ diagrams = {
     ETL3 --> PACK
     PACK --> THREAT_DB
     
-    subgraph SIATI_Core["Core SIATI (Air-Gapped)"]
+    subgraph VULNFIX_Core["Core VulnFix (Air-Gapped)"]
         NVD_ENRICH["nvd.py"]
         CPE_ENRICH["cpe_to_cve.py"]
         EXP_ENRICH["exploit_db.py"]
@@ -165,7 +165,7 @@ diagrams = {
     "05_architecture_conceptuelle_presentation.png": """flowchart LR
     SCANS(["Scans de Vulnérabilités (Nmap, Nessus)"])
     INTEL(["Cyber Threat Intelligence (NVD, EPSS)"])
-    subgraph SIATI ["Moteur Central SIATI"]
+    subgraph VulnFix ["Moteur Central VulnFix"]
         INGEST["Normalisation & Ingestion"]
         ML["ML Scoring (XGBoost)"]
         LLM["RAG & Playbooks (Ollama Mistral)"]

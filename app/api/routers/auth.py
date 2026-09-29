@@ -11,8 +11,8 @@ from app.core.security import (
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-_ADMIN_USER = os.environ.get("SIATI_ADMIN_USER", "admin")
-_ADMIN_PASSWORD_PLAIN = os.environ.get("SIATI_ADMIN_PASSWORD", "admin")
+_ADMIN_USER = os.environ.get("VULNFIX_ADMIN_USER", "admin")
+_ADMIN_PASSWORD_PLAIN = os.environ.get("VULNFIX_ADMIN_PASSWORD", "admin")
 _ADMIN_PASSWORD_HASH = get_password_hash(_ADMIN_PASSWORD_PLAIN)
 
 class LoginRequest(BaseModel):

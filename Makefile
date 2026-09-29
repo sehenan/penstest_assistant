@@ -18,7 +18,7 @@ deploy:
 	docker compose up -d
 
 logs:
-	docker compose logs -f siati
+	docker compose logs -f vulnfix
 
 backup:
 	./scripts/deploy.sh backup

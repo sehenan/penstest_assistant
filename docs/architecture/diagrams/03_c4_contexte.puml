@@ -12,8 +12,8 @@ UpdateElementStyle(external_system, $bgColor="white", $fontColor="black", $borde
 Person(pentester, "Pentester / Analyste", "Importe les scans, consulte la priorisation, exploite les playbooks")
 Person(intelop, "Opérateur Threat Intel", "Prépare le bundle de renseignement sur une machine connectée")
 
-System(siati, "SIATI", "Assistant IA de tests d'intrusion : ingestion de scans, enrichissement local, scoring XGBoost, playbooks RAG + LLM")
-System(builder, "SIATI Intel Builder", "ETL autonome : NVD, EPSS, KEV → threat_intel.db")
+System(vulnfix, "VulnFix", "Assistant IA de tests d'intrusion : ingestion de scans, enrichissement local, scoring XGBoost, playbooks RAG + LLM")
+System(builder, "VulnFix Intel Builder", "ETL autonome : NVD, EPSS, KEV → threat_intel.db")
 
 System_Ext(ollama, "Ollama", "Serveur LLM local (modèle mistral)")
 System_Ext(redis, "Redis", "Limitation de débit / cache (optionnel)")
@@ -21,12 +21,12 @@ System_Ext(nvd, "NVD (NIST)", "Référentiel CVE")
 System_Ext(epss, "FIRST EPSS", "Probabilités d'exploitation")
 System_Ext(kev, "CISA KEV", "Vulnérabilités exploitées connues")
 
-Rel(pentester, siati, "Importe des scans, consulte, génère des playbooks", "HTTP :8505 + CLI")
-Rel(siati, ollama, "Génération de texte, chat, traduction", "HTTP :11434")
-Rel(siati, redis, "Compteurs de débit (repli mémoire)", "TCP :6379")
+Rel(pentester, vulnfix, "Importe des scans, consulte, génère des playbooks", "HTTP :8505 + CLI")
+Rel(vulnfix, ollama, "Génération de texte, chat, traduction", "HTTP :11434")
+Rel(vulnfix, redis, "Compteurs de débit (repli mémoire)", "TCP :6379")
 Rel(intelop, builder, "Exécute l'ETL")
 Rel(builder, nvd, "Télécharge les CVE", "HTTPS")
 Rel(builder, epss, "Télécharge les scores", "HTTPS")
 Rel(builder, kev, "Télécharge le catalogue", "HTTPS")
-Rel(builder, siati, "Fournit threat_intel.db", "transfert hors ligne")
+Rel(builder, vulnfix, "Fournit threat_intel.db", "transfert hors ligne")
 @enduml

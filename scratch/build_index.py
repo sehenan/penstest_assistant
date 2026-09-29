@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 from app.module_llm.rag.indexer import Indexer
 
 def main():
-    parser = argparse.ArgumentParser(description="SIATI - (Re)construction de l'index RAG")
+    parser = argparse.ArgumentParser(description="VulnFix - (Re)construction de l'index RAG")
     parser.add_argument("--config", default="config/config.yaml", help="Chemin du fichier config.yaml")
     parser.add_argument("--force", action="store_true", help="Force la ré-indexation")
     args = parser.parse_args()
@@ -26,7 +26,7 @@ def main():
     knowledge_dir = config['rag']['knowledge_dir']
     output_dir = config['rag']['output_dir']
 
-    logger.info("=== SIATI RAG INDEXER ===")
+    logger.info("=== VulnFix RAG INDEXER ===")
     indexer.build_index(knowledge_dir, output_dir)
     logger.info("Processus terminé.")
 

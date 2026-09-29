@@ -67,6 +67,6 @@ end note
 note bottom of AIR
   L'enrichissement repose exclusivement
   sur des bases locales fournies par le
-  bundle SIATI Intel Builder.
+  bundle VulnFix Intel Builder.
 end note
 @enduml

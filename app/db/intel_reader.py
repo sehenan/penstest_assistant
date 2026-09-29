@@ -14,8 +14,8 @@ from app.db.threat_intel_db import IntelCVE, get_intel_session
 logger = logging.getLogger(__name__)
 
 NO_CVE_CONFIRMED = (
-    "⚠ Aucune CVE confirmée dans la base locale SIATI pour ce service/version.\n"
-    "Pour mettre à jour : cd siati_intel_builder && python main.py"
+    "⚠ Aucune CVE confirmée dans la base locale VulnFix pour ce service/version.\n"
+    "Pour mettre à jour : cd vulnfix_intel_builder && python main.py"
 )
 
 
@@ -61,7 +61,7 @@ class IntelReader:
             if not confirmed:
                 logger.info(
                     "Aucune CVE confirmée localement pour %s %s. "
-                    "Mettre à jour avec : cd siati_intel_builder && python main.py",
+                    "Mettre à jour avec : cd vulnfix_intel_builder && python main.py",
                     service_name, version,
                 )
             return confirmed

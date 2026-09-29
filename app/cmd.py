@@ -206,14 +206,14 @@ def exploit(vuln_id: int):
 @app.command("ui")
 def ui(
     host: str = typer.Option(
-        os.environ.get("SIATI_HOST", "127.0.0.1"), "--host", help="Adresse d'écoute"
+        os.environ.get("VULNFIX_HOST", "127.0.0.1"), "--host", help="Adresse d'écoute"
     ),
     port: int = typer.Option(
-        int(os.environ.get("SIATI_PORT", "8505")), "--port", help="Port d'écoute"
+        int(os.environ.get("VULNFIX_PORT", "8505")), "--port", help="Port d'écoute"
     ),
 ):
-    """[Phase 5] Démarre le Dashboard SIATI (FastAPI + HTML)."""
-    typer.secho(f"--> Lancement de l'IHM SIATI sur http://{host}:{port}", fg=typer.colors.MAGENTA)
+    """[Phase 5] Démarre le Dashboard VulnFix (FastAPI + HTML)."""
+    typer.secho(f"--> Lancement de l'IHM VulnFix sur http://{host}:{port}", fg=typer.colors.MAGENTA)
     server_module = "app.ui.server:app"
     env = {**os.environ, "OMP_NUM_THREADS": "1"}
     subprocess.run([
@@ -376,7 +376,7 @@ def sync_intel():
         
         # Chercher dans les répertoires probables
         search_paths = [
-            "siati_intel_builder/bundles/*.tar.gz",
+            "vulnfix_intel_builder/bundles/*.tar.gz",
             "bundles/*.tar.gz",
             "data/bundles/*.tar.gz"
         ]
@@ -435,7 +435,7 @@ def rollback_intel():
         success = rollback_to_version(backup_name)
         
         if success:
-            typer.secho("[+] Rollback réussi ! SIATI utilise l'ancienne base.", fg=typer.colors.GREEN)
+            typer.secho("[+] Rollback réussi ! VulnFix utilise l'ancienne base.", fg=typer.colors.GREEN)
         else:
             typer.secho("[-] Échec du rollback.", fg=typer.colors.RED)
     except Exception as e:

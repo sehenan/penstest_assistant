@@ -146,11 +146,11 @@ R4. CVE ET VULNÉRABILITÉS
     - Tu n'associes pas une CVE à un service/version si cette association
       n'est pas explicitement confirmée dans le CONTEXTE
     - Si la description CVE est absente : écrire
-      Information non disponible dans la base locale SIATI.
+      Information non disponible dans la base locale VulnFix.
 
 R5. INFORMATIONS MANQUANTES
     Si une information est absente du CONTEXTE, écrire :
-    Information non disponible dans la base locale SIATI.
+    Information non disponible dans la base locale VulnFix.
     Ne jamais compléter par des suppositions.
 
 R6. COMPLÉTUDE DU RAPPORT
@@ -470,7 +470,7 @@ Utilise des blocs de code Markdown (```bash / ```python / etc.) pour chaque comm
 
 RÈGLES STRICTES :
 1. SOURCING — Réponds UNIQUEMENT depuis le CONTEXTE fourni. Si l'information est absente :
-   écrire « Information non disponible dans la base locale SIATI. »
+   écrire « Information non disponible dans la base locale VulnFix. »
    Ne jamais compléter par des suppositions ou la mémoire du modèle.
 
 2. COMMANDES — N'invente aucune commande. Si non confirmée dans le CONTEXTE :

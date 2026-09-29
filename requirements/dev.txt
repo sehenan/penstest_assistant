@@ -1,4 +1,4 @@
-# === SIATI — Dépendances de DÉVELOPPEMENT / TEST ===
+# === VulnFix — Dépendances de DÉVELOPPEMENT / TEST ===
 # Installe d'abord le runtime, puis les outils de qualité.
 -r requirements.txt
 

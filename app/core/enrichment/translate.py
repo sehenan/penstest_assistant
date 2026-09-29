@@ -1,7 +1,7 @@
 """
 Traduction automatique des descriptions de vulnérabilités (EN → FR).
 ===================================================================
-Module complet de traduction pour SIATI — mode air-gap.
+Module complet de traduction pour VulnFix — mode air-gap.
 
 Stratégie en 3 couches :
   1. Détection langue : skip si déjà en français

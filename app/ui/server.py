@@ -1,5 +1,5 @@
 """
-SIATI — FastAPI backend
+VulnFix — FastAPI backend
 Sert l'interface HTML statique et expose les endpoints REST
 connectés à la base SQLite + ML (XGBoost) + LLM (Ollama/RAG).
 """
@@ -49,22 +49,22 @@ async def lifespan(_app: FastAPI):
 
 # ── app setup ─────────────────────────────────────────────────────────────────
 app = FastAPI(
-    title="SIATI API",
+    title="VulnFix API",
     description="Système Intelligent d'Assistance aux Tests d'Intrusion",
     version="1.0.0",
     lifespan=lifespan,
     # Désactiver la doc Swagger en production
-    docs_url=None if settings.SIATI_ENV == "production" else "/docs",
-    redoc_url=None if settings.SIATI_ENV == "production" else "/redoc",
+    docs_url=None if settings.VULNFIX_ENV == "production" else "/docs",
+    redoc_url=None if settings.VULNFIX_ENV == "production" else "/redoc",
 )
 
 # ── Gestionnaire d'erreurs global ─────────────────────────────────────────────
 app.add_exception_handler(Exception, app_error_handler)
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
-# Si SIATI_CORS_ORIGINS vaut "*", on ouvre tout (dev/air-gap).
+# Si VULNFIX_CORS_ORIGINS vaut "*", on ouvre tout (dev/air-gap).
 # Sinon, liste d'origines stricte (prod).
-_cors_raw = settings.SIATI_CORS_ORIGINS.strip()
+_cors_raw = settings.VULNFIX_CORS_ORIGINS.strip()
 _cors_wildcard = _cors_raw == "*"
 app.add_middleware(
     CORSMiddleware,
@@ -89,7 +89,7 @@ if DATA_DIR.exists():
 @app.get("/", response_class=HTMLResponse)
 async def serve_ui(request: Request):
     """Redirige vers /login si le cookie d'authentification est absent."""
-    token = request.cookies.get("siati_token") or request.headers.get("Authorization", "").replace("Bearer ", "")
+    token = request.cookies.get("vulnfix_token") or request.headers.get("Authorization", "").replace("Bearer ", "")
     if not token:
         return RedirectResponse(url="/login", status_code=302)
     html_path = TEMPLATES_DIR / "index.html"
@@ -108,8 +108,8 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
         "app.ui.server:app",
-        host=settings.SIATI_HOST,
-        port=settings.SIATI_PORT,
-        reload=(settings.SIATI_ENV == "development"),
+        host=settings.VULNFIX_HOST,
+        port=settings.VULNFIX_PORT,
+        reload=(settings.VULNFIX_ENV == "development"),
         log_level=settings.LOG_LEVEL.lower(),
     )

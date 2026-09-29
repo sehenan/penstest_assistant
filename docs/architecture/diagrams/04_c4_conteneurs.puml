@@ -12,17 +12,17 @@ UpdateElementStyle(container, $bgColor="white", $fontColor="black", $borderColor
 
 Person(pentester, "Pentester / Analyste")
 
-System_Boundary(siati, "SIATI") {
+System_Boundary(vulnfix, "VulnFix") {
   Container(spa, "Tableau de bord SPA", "HTML/JS statique", "app/ui/index.html, servi par FastAPI")
   Container(api, "Backend FastAPI", "Python / uvicorn :8505", "server.py + api_router : REST, pipeline auto-pilot, export PDF (xhtml2pdf)")
   Container(cli, "CLI Typer", "Python", "ingest, enrich, train, score, playbook(-v2), auto, index-rag(-v2), check, setup-data")
-  ContainerDb(db, "siati.db", "SQLite / SQLAlchemy", "Host, Service, Vulnerability, ScoreML, Exploit, Report")
+  ContainerDb(db, "vulnfix.db", "SQLite / SQLAlchemy", "Host, Service, Vulnerability, ScoreML, Exploit, Report")
   ContainerDb(intel, "Bases d'enrichissement", "SQLite + JSON", "threat_intel.db, cpe.db, exploits.db, nvd_cache/")
   ContainerDb(faiss, "Index vectoriel", "FAISS + chunks.json", "Base de connaissances vectorisée (all-MiniLM-L6-v2)")
   Container(models, "Artefacts ML", "joblib", "regresseur_xgb, classificateur_xgb, metrics_xgb.json")
 }
 
-System(builder, "SIATI Intel Builder", "ETL NVD / EPSS / KEV (machine connectée)")
+System(builder, "VulnFix Intel Builder", "ETL NVD / EPSS / KEV (machine connectée)")
 System_Ext(ollama, "Ollama", "LLM local — mistral :11434")
 System_Ext(redis, "Redis", "optionnel :6379")
 

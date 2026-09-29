@@ -4,8 +4,8 @@ title Diagramme de déploiement — docker-compose (air-gapped) + machine connec
 
 node "Poste pentester (air-gapped)" {
   node "Navigateur web" as BR
-  node "Docker Engine — réseau siati-network" {
-    node "conteneur : siati" {
+  node "Docker Engine — réseau vulnfix-network" {
+    node "conteneur : vulnfix" {
       artifact "FastAPI / uvicorn :8505" as APP
     }
     node "conteneur : ollama" {
@@ -19,7 +19,7 @@ node "Poste pentester (air-gapped)" {
     }
   }
   folder "Volumes / montages" {
-    artifact "data/ — siati.db, threat_intel.db,\ncpe.db, exploits.db, nvd_cache/,\nfaiss_index/, model/*.joblib" as VDATA
+    artifact "data/ — vulnfix.db, threat_intel.db,\ncpe.db, exploits.db, nvd_cache/,\nfaiss_index/, model/*.joblib" as VDATA
     artifact "logs/" as VLOGS
     artifact "volume ollama-data" as VOLL
     artifact "volume redis-data" as VRED
@@ -27,7 +27,7 @@ node "Poste pentester (air-gapped)" {
 }
 
 node "Machine connectée Internet" {
-  artifact "siati_intel_builder\n(ETL NVD / EPSS / KEV)" as BUILDER
+  artifact "vulnfix_intel_builder\n(ETL NVD / EPSS / KEV)" as BUILDER
 }
 cloud "Internet" {
   artifact "NVD — FIRST EPSS — CISA KEV" as SRC

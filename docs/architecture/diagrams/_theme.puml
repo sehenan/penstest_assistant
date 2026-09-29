@@ -1,5 +1,5 @@
 ' ============================================================
-' Thème visuel partagé SIATI — à inclure dans chaque diagramme
+' Thème visuel partagé VulnFix — à inclure dans chaque diagramme
 ' non-C4 via :  !include _theme.puml
 ' Objectif : rendu homogène, lisible et professionnel pour la
 ' soutenance (fond blanc, flèches orthogonales, espacement net).

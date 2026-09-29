@@ -1,5 +1,5 @@
 @startuml 06_cas_utilisation
-title Diagramme de cas d'utilisation — SIATI
+title Diagramme de cas d'utilisation — VulnFix
 !include _theme.puml
 left to right direction
 
@@ -12,7 +12,7 @@ skinparam usecase {
 actor "Pentester /\nAnalyste" as P
 actor "Opérateur\nThreat Intelligence" as O
 
-rectangle "SIATI" {
+rectangle "VulnFix" {
 
   ' ---- Objectifs métier principaux (visibles par l'utilisateur) ----
   usecase "Importer les\nrésultats de scan" as UC_IMPORT

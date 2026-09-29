@@ -10,7 +10,7 @@ mermaid_str = """flowchart TB
     classDef external fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px;
     classDef output fill:#ffebee,stroke:#d32f2f,stroke-width:2px;
 
-    subgraph Phase0 ["0. Préparation Hors-Ligne (siati_intel_builder)"]
+    subgraph Phase0 ["0. Préparation Hors-Ligne (vulnfix_intel_builder)"]
         direction LR
         API_Ext{{APIs NVD, EPSS, KEV}}:::external
         IntelBuilder["Packager Air-Gapped"]:::process
@@ -20,7 +20,7 @@ mermaid_str = """flowchart TB
         IntelBuilder -->|Packaging| Bundle
     end
 
-    subgraph SIATI ["Système Central SIATI (Environnement Cible)"]
+    subgraph VulnFix ["Système Central VulnFix (Environnement Cible)"]
 
         subgraph Ingestion ["1. Sources & Ingestion"]
             Scans([Scans: .txt, .xml, .nessus]):::input
@@ -94,7 +94,7 @@ encoded = base64.urlsafe_b64encode(full_mermaid.encode('utf-8')).decode('utf-8')
 url = f'https://mermaid.ink/img/{encoded}?bgColor=!white'
 
 req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-output_path = os.path.join(os.path.dirname(__file__), "..", "architecture_siati_finale.png")
+output_path = os.path.join(os.path.dirname(__file__), "..", "architecture_vulnfix_finale.png")
 try:
     with urllib.request.urlopen(req) as response:
         with open(output_path, 'wb') as f:

@@ -1,6 +1,6 @@
 @startuml 02_architecture_globale
 !include _theme.puml
-title Architecture globale en couches — SIATI
+title Architecture globale en couches — VulnFix
 caption Flux principal (auto-pilot). Le détail des appels figure sur le C4 niveau 3 (composants).
 
 ' ---- Points d'entrée (haut) ----
@@ -33,7 +33,7 @@ package "4 · Module LLM V2 — app/module_llm" {
 
 ' ---- Données locales (bas) ----
 package "5 · Données locales" {
-  database "siati.db" as DB
+  database "vulnfix.db" as DB
   database "threat_intel.db,\ncpe.db, exploits.db,\nnvd_cache/" as INTEL
   database "faiss_index/ +\nknowledge_base/" as FAISSDB
   database "model/*.joblib\n(XGBoost)" as MODELS

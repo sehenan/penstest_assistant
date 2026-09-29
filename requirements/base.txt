@@ -1,4 +1,4 @@
-# === SIATI — Dépendances de PRODUCTION (runtime) ===
+# === VulnFix — Dépendances de PRODUCTION (runtime) ===
 # Versions épinglées sur l'environnement validé (.venv / Python 3.12).
 # Les outils de test/qualité sont dans requirements-dev.txt.
 #

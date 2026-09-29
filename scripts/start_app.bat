@@ -3,7 +3,7 @@ setlocal
 cd /d %~dp0
 
 echo ==========================================
-echo    SIATI - Pentest Assistant Dashboard
+echo    VulnFix - Pentest Assistant Dashboard
 echo ==========================================
 
 :: Check if virtual environment exists, create it if not
@@ -22,7 +22,7 @@ pip install -r requirements.txt
 
 :: Launch UI
 echo.
-echo [+] Lancement du Dashboard SIATI...
+echo [+] Lancement du Dashboard VulnFix...
 echo [+] URL: http://127.0.0.1:8505
 echo.
 python main.py ui

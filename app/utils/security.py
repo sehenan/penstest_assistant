@@ -23,9 +23,9 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 # Mode d'authentification. Par défaut OFF : la plateforme est conçue pour un usage
-# LOCAL / air-gap (API liée à 127.0.0.1, mono-utilisateur). Passer SIATI_REQUIRE_AUTH=1
+# LOCAL / air-gap (API liée à 127.0.0.1, mono-utilisateur). Passer VULNFIX_REQUIRE_AUTH=1
 # pour un déploiement réseau : les routes protégées exigeront alors un token valide.
-REQUIRE_AUTH = os.environ.get("SIATI_REQUIRE_AUTH", "0").lower() in ("1", "true", "yes", "on")
+REQUIRE_AUTH = os.environ.get("VULNFIX_REQUIRE_AUTH", "0").lower() in ("1", "true", "yes", "on")
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

@@ -30,7 +30,7 @@ def init_version_tracker():
 
 def ingest_bundle(bundle_path: str) -> bool:
     """
-    Ingère un bundle tar.gz généré par le siati_intel_builder.
+    Ingère un bundle tar.gz généré par le vulnfix_intel_builder.
     Vérifie l'intégrité (SHA256) et remplace la base en assurant le versioning.
     """
     init_version_tracker()

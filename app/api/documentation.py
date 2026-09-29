@@ -22,13 +22,13 @@ def custom_openapi_schema(app: FastAPI) -> Dict[str, Any]:
         return app.openapi_schema
 
     openapi_schema = get_openapi(
-        title="SIATI API",
+        title="VulnFix API",
         version="2.0.0",
         description="""
-        # SIATI - Système Intelligent d'Assistance aux Tests d'Intrusion
+        # VulnFix - Système Intelligent d'Assistance aux Tests d'Intrusion
 
         ## Overview
-        SIATI est une plateforme moderne de pentesting assisté par IA qui combine :
+        VulnFix est une plateforme moderne de pentesting assisté par IA qui combine :
         - **Machine Learning** pour la priorisation des vulnérabilités
         - **LLM (Ollama)** pour la génération de playbooks d'exploitation
         - **RAG (Retrieval-Augmented Generation)** pour des réponses précises
@@ -58,9 +58,9 @@ def custom_openapi_schema(app: FastAPI) -> Dict[str, Any]:
 
     # Add custom information
     openapi_schema["info"]["contact"] = {
-        "name": "SIATI Support",
-        "email": "support@siati.example.com",
-        "url": "https://siati.example.com"
+        "name": "VulnFix Support",
+        "email": "support@vulnfix.example.com",
+        "url": "https://vulnfix.example.com"
     }
 
     openapi_schema["info"]["license"] = {
@@ -75,7 +75,7 @@ def custom_openapi_schema(app: FastAPI) -> Dict[str, Any]:
             "description": "Development server"
         },
         {
-            "url": "https://api.siati.example.com",
+            "url": "https://api.vulnfix.example.com",
             "description": "Production server"
         }
     ]
@@ -567,7 +567,7 @@ def get_api_documentation() -> Dict[str, Any]:
     return {
         "openapi": "3.0.0",
         "info": {
-            "title": "SIATI API",
+            "title": "VulnFix API",
             "version": "2.0.0",
             "description": "Système Intelligent d'Assistance aux Tests d'Intrusion"
         },

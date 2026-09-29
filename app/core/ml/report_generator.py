@@ -24,7 +24,7 @@ def generate_performance_report():
     if cr_path.exists():
         class_report = cr_path.read_text()
 
-    report = f"""# Rapport de Performance - Modèle XGBoost SIATI
+    report = f"""# Rapport de Performance - Modèle XGBoost VulnFix
 
 ## 1. Résumé Exécutif
 Ce modèle de régression XGBoost a été entraîné pour prédire le score de risque des vulnérabilités. 
@@ -68,7 +68,7 @@ Distribution des erreurs de prédiction.
 ![Résidus](data/evaluation/03_residuals.png)
 
 ---
-*Généré automatiquement par SIATI Pentest Assistant le {m.get('timestamp')}*
+*Généré automatiquement par VulnFix Pentest Assistant le {m.get('timestamp')}*
 """
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
     REPORT_PATH.write_text(report, encoding="utf-8")

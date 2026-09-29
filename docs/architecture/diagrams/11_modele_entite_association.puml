@@ -1,9 +1,9 @@
 @startuml 11_modele_entite_association
-title Modèle entité-association — siati.db et threat_intel.db
+title Modèle entité-association — vulnfix.db et threat_intel.db
 !include _theme.puml
 hide circle
 
-package "siati.db (SQLite)" {
+package "vulnfix.db (SQLite)" {
   entity hosts {
     * id : INTEGER <<PK>>
     --

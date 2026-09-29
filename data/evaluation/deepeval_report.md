@@ -1,7 +1,7 @@
-# Rapport d'Evaluation de Performance - SIATI (LLM-as-a-Judge)
+# Rapport d'Evaluation de Performance - VulnFix (LLM-as-a-Judge)
 *Genere le : 2026-08-28 16:49 | Modele Juge : `llama3:latest` (OLLAMA)*
 
-Ce rapport presente l'evaluation quantitative et qualitative des deux principaux modules d'intelligence artificielle developpes dans le cadre du projet **SIATI (Pentest Assistant)** : la priorisation des vulnerabilites par Machine Learning (XGBoost) et le moteur de RAG (Retrieval-Augmented Generation).
+Ce rapport presente l'evaluation quantitative et qualitative des deux principaux modules d'intelligence artificielle developpes dans le cadre du projet **VulnFix (Pentest Assistant)** : la priorisation des vulnerabilites par Machine Learning (XGBoost) et le moteur de RAG (Retrieval-Augmented Generation).
 
 ---
 

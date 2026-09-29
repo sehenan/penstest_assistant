@@ -50,7 +50,7 @@ test_out.txt
 # Bases runtime (générées/mutées à l'exécution — recréées par init_db / ingestion).
 # Les bases de RÉFÉRENCE (cpe.db, exploits.db, threat_intel.db) restent versionnées.
 data/pentest.db
-data/siati.db
+data/vulnfix.db
 
 # Données générées et Bases de connaissances locales
 data/knowledge_base/

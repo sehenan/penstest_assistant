@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger(__name__)
 
 def main():
-    parser = argparse.ArgumentParser(description="SIATI Intel Builder (Air-Gapped Packager)")
+    parser = argparse.ArgumentParser(description="VulnFix Intel Builder (Air-Gapped Packager)")
     parser.add_argument("--nvd-days", type=int, default=30, help="Nombre de jours pour l'historique NVD (défaut: 30)")
     parser.add_argument("--skip-nvd", action="store_true", help="Ignorer le téléchargement NVD")
     parser.add_argument("--skip-epss", action="store_true", help="Ignorer le téléchargement EPSS")

@@ -1,5 +1,5 @@
 """
-SIATI — Branding API
+VulnFix — Branding API
 Gestion du logo personnalisé de l'entreprise.
 Le logo est stocké dans data/custom_logo.{ext} côté serveur.
 """
@@ -109,7 +109,7 @@ async def upload_custom_logo(
 
 @router.delete("/logo")
 def delete_custom_logo(_auth=Depends(require_auth)):
-    """Supprime le logo personnalisé (retour au logo par défaut SIATI)."""
+    """Supprime le logo personnalisé (retour au logo par défaut VulnFix)."""
     logo_path = _find_custom_logo()
     if logo_path is None:
         return {"ok": True, "message": "Aucun logo personnalisé à supprimer."}

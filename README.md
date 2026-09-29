@@ -1,4 +1,4 @@
-# 🎯 SIATI - Système Intelligent d'Assistance aux Tests d'Intrusion
+# 🎯 VulnFix - Système Intelligent d'Assistance aux Tests d'Intrusion
 
 **Version**: 2.0.0 | **Statut**: ✅ PRÊT POUR LA PRODUCTION | **Qualité**: 🏆 100% (A+)
 
@@ -38,7 +38,7 @@ python main.py -web
 
 ## 📊 Aperçu du Projet
 
-SIATI est un **assistant de tests d'intrusion moderne propulsé par l'IA** qui combine :
+VulnFix est un **assistant de tests d'intrusion moderne propulsé par l'IA** qui combine :
 
 - 🤖 **Machine Learning** (XGBoost) pour la priorisation intelligente des vulnérabilités
 - 🧠 **Intégration LLM** (Ollama) pour la génération automatisée de playbooks
@@ -167,7 +167,7 @@ penstest_assistant/
 │
 ├── main.py                     # Point d'entrée CLI
 ├── Dockerfile                  # Image Docker multi-stage (prod)
-├── docker-compose.yml          # Orchestration : SIATI + Ollama + Redis
+├── docker-compose.yml          # Orchestration : VulnFix + Ollama + Redis
 ├── .env.example                # ⭐ Template de configuration (copier → .env)
 ├── requirements.txt            # Dépendances production
 ├── requirements-dev.txt        # Dépendances développement
@@ -183,7 +183,7 @@ penstest_assistant/
 
 ```bash
 # Base de données
-SIATI_DB_PATH=/app/data/pentest.db
+VULNFIX_DB_PATH=/app/data/pentest.db
 
 # Sécurité
 SECRET_KEY=your-secret-key-here
@@ -199,7 +199,7 @@ REDIS_HOST=localhost
 REDIS_PORT=6379
 
 # Journalisation (Logging)
-SIATI_LOG_LEVEL=INFO
+VULNFIX_LOG_LEVEL=INFO
 ```
 
 ### Configuration de l'Application
@@ -208,7 +208,7 @@ Voir `config.yaml` pour les options de configuration détaillées :
 
 ```yaml
 database:
-  path: "data/siati.db"
+  path: "data/vulnfix.db"
 
 rag:
   knowledge_dir: "data/knowledge_base"
@@ -547,7 +547,7 @@ Licence MIT - Voir le fichier LICENSE pour plus de détails
 
 ## 👥 Équipe
 
-**Équipe de Développement SIATI**
+**Équipe de Développement VulnFix**
 
 - **Projet** : Assistant Pentest avec IA
 - **Version** : 2.0.0

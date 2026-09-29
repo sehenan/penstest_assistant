@@ -355,7 +355,7 @@ def generate_playbook_fallback(vuln, context_chunks):
 
 def run_evaluation(sample_size=5, judge_name="auto", judge_model_name=None):
     print("=" * 70)
-    print("  SIATI PFE -- PIPELINE D'EVALUATION DEEPEVAL & INTEGRATION MULTI-LLM")
+    print("  VulnFix PFE -- PIPELINE D'EVALUATION DEEPEVAL & INTEGRATION MULTI-LLM")
     print("=" * 70)
 
     vulns = get_vulnerabilities_and_scores(sample_size=sample_size)
@@ -513,10 +513,10 @@ def run_evaluation(sample_size=5, judge_name="auto", judge_model_name=None):
             return "N/A (juge local)"
         return "OK" if s >= 0.7 else label
 
-    report_md = f"""# Rapport d'Evaluation de Performance - SIATI (LLM-as-a-Judge)
+    report_md = f"""# Rapport d'Evaluation de Performance - VulnFix (LLM-as-a-Judge)
 *Genere le : {datetime.now().strftime('%Y-%m-%d %H:%M')} | Modele Juge : `{resolved_model_name}` ({resolved_judge.upper()})*
 
-Ce rapport presente l'evaluation quantitative et qualitative des deux principaux modules d'intelligence artificielle developpes dans le cadre du projet **SIATI (Pentest Assistant)** : la priorisation des vulnerabilites par Machine Learning (XGBoost) et le moteur de RAG (Retrieval-Augmented Generation).
+Ce rapport presente l'evaluation quantitative et qualitative des deux principaux modules d'intelligence artificielle developpes dans le cadre du projet **VulnFix (Pentest Assistant)** : la priorisation des vulnerabilites par Machine Learning (XGBoost) et le moteur de RAG (Retrieval-Augmented Generation).
 
 ---
 
@@ -612,7 +612,7 @@ L'evaluation RAG mesure la capacite du systeme a exploiter la base de connaissan
 # ─────────────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="SIATI - Evaluation Multi-Juge DeepEval")
+    parser = argparse.ArgumentParser(description="VulnFix - Evaluation Multi-Juge DeepEval")
     parser.add_argument("--sample-size", type=int, default=5,
                         help="Nombre de vulnerabilites a evaluer")
     parser.add_argument("--judge", type=str, default="auto",

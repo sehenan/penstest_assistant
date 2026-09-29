@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**SIATI** (Système Intelligent d'Assistance aux Tests d'Intrusion) is an AI-powered pentest assistant that ingests security scan files (Nmap, Nessus, OpenVAS), enriches vulnerabilities with NVD/CPE/Exploit-DB data, scores them with XGBoost ML, and generates exploitation playbooks via a RAG + Ollama LLM pipeline. The app exposes a FastAPI backend serving a static HTML dashboard.
+**VulnFix** (Système Intelligent d'Assistance aux Tests d'Intrusion) is an AI-powered pentest assistant that ingests security scan files (Nmap, Nessus, OpenVAS), enriches vulnerabilities with NVD/CPE/Exploit-DB data, scores them with XGBoost ML, and generates exploitation playbooks via a RAG + Ollama LLM pipeline. The app exposes a FastAPI backend serving a static HTML dashboard.
 
 ## Commands
 
@@ -82,7 +82,7 @@ Scan file (XML/Nessus/OpenVAS)
 **`app/core/pipeline.py`** — `FullPipeline.run()` chains all phases sequentially for programmatic use (used by `auto` CLI command).
 
 ### Configuration
-`config.yaml` is the single config file (DB path, RAG parameters, Ollama URL/model/timeout). Override with environment variables: `SIATI_DB_PATH`, `OLLAMA_HOST`, `OLLAMA_MODEL`, `SECRET_KEY`, `REDIS_HOST`.
+`config.yaml` is the single config file (DB path, RAG parameters, Ollama URL/model/timeout). Override with environment variables: `VULNFIX_DB_PATH`, `OLLAMA_HOST`, `OLLAMA_MODEL`, `SECRET_KEY`, `REDIS_HOST`.
 
 ### External dependencies
 - **Ollama** must be running locally (`http://localhost:11434`) with the configured model (default: `mistral`) for playbook generation.

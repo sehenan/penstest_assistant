@@ -1,5 +1,5 @@
 """
-Script d'entraînement des modèles de Machine Learning (XGBoost) pour le projet SIATI.
+Script d'entraînement des modèles de Machine Learning (XGBoost) pour le projet VulnFix.
 Ce script a pour but de :
 1. Charger un jeu de données de vulnérabilités.
 2. Assigner des étiquettes de criticité (Faible, Moyenne, Haute, Critique) basées sur des règles métier.
